@@ -1,12 +1,12 @@
 esphome:
-  name: project-template
-  friendly_name: Project Template
+  name: modotabmount
+  friendly_name: Modo Tab Mount
   # Automatically add the mac address to the name
   # so you can use a single firmware for all devices
   name_add_mac_suffix: true
 
 esp32:
-  board: esp32dev
+  board: esp32-c3-devkitm-1
   framework:
     type: esp-idf
 
@@ -27,3 +27,135 @@ wifi:
 # In combination with the `ap` this allows the user
 # to provision wifi credentials to the device.
 captive_portal:
+
+web_server:
+  port: 80
+
+globals:
+  - id: previous_brightness
+    type: float
+    restore_value: no
+    initial_value: '1.0'
+
+  - id: previous_effect
+    type: std::string
+    restore_value: no
+    initial_value: "\"\""
+
+  - id: saved_brightness
+    type: float
+    restore_value: no
+    initial_value: '1.0'
+
+  - id: saved_effect
+    type: std::string
+    restore_value: no
+    initial_value: "\"\""
+
+light:
+  - platform: esp32_rmt_led_strip
+    id: addressable_led
+    name: "LED"
+    chipset: WS2812
+    pin: GPIO5
+    num_leds: 64
+    rgb_order: GRB
+    effects:
+      - addressable_rainbow:
+          name: Rainbow
+      - addressable_rainbow:
+          name: Rainbow effect
+          speed: 10
+          width: 64
+      - addressable_color_wipe:
+          name: Color Wipe
+      - random:
+          name: Random
+      - random:
+          name: Random Effect
+          transition_length: 5s
+          update_interval: 7s
+      - pulse:
+          name: Pulse
+      - pulse:
+          name: "Fast Pulse"
+          transition_length: 0.5s
+          update_interval: 0.5s
+          min_brightness: 0%
+          max_brightness: 100%
+      - pulse:
+          name: "Slow Pulse"
+          transition_length: 500ms
+          update_interval: 2s
+      - pulse:
+          name: "Asymmetrical Pulse"
+          transition_length:
+            on_length: 1s
+            off_length: 500ms
+          update_interval: 1.5s
+      - addressable_random_twinkle:
+          name: Twinkle
+      - addressable_random_twinkle:
+          name: Random Twinkle Effect
+          twinkle_probability: 5%
+          progress_interval: 32ms
+
+  - platform: ina219
+    address: 0x40
+    shunt_resistance: 0.0767 ohm
+    current:
+      name: "Current"
+    power:
+      name: "Power"
+      id: ina219_power
+    bus_voltage:
+      name: "Bus Voltage"
+    shunt_voltage:
+      name: "Shunt Voltage"
+    max_voltage: 5.6V
+    max_current: 2.7A
+    update_interval: 3s
+
+  - platform: internal_temperature
+    name: "ESP32 Internal Temp"
+
+  - platform: uptime
+    name: uptime
+    type: seconds
+
+  - platform: wifi_signal
+    name: WiFi Signal
+    update_interval: 180s
+
+binary_sensor:
+  - platform: template
+    name: "Power Low Threshold"
+    id: led_power_low
+    lambda: |-
+      return id(ina219_power).state < 7.5;
+    internal: true
+
+interval:
+  - interval: 3s
+    then:
+      - lambda: |-
+          static bool throttled = false;
+          auto power = id(ina219_power).state;
+          auto led = id(addressable_led);
+          if (!throttled && power > 10.0 && led->current_values.is_on()) {
+            id(previous_brightness) = led->current_values.get_brightness();
+            id(previous_effect) = led->get_effect_name().c_str();
+            auto call = led->turn_on();
+            call.set_brightness(0.5f);
+            call.perform();
+            throttled = true;
+          } else if (throttled && id(led_power_low).state) {
+            throttled = false;
+            auto call = led->turn_on();
+            if (id(previous_brightness) > 0.0f)
+              call.set_brightness(id(previous_brightness));
+            if (id(previous_effect).length() > 0)
+              call.set_effect(id(previous_effect).c_str());
+            call.perform();
+          }
+
