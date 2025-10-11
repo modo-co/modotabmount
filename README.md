@@ -1,7 +1,10 @@
 # Modo Tab Mount – Smart Tablet Wall Mount
 
 **Open-source smart tablet mount with ESPHome integration, magnetic docking, and customizable sensors.**  
-Designed for seamless integration with ESPHome.
+<video width="640" height="360" controls>
+  <source src="images/main_anim_all_visible.mp4">
+  Your browser does not support the video tag.
+</video>
 
 ## Overview
 
