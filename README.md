@@ -1,12 +1,12 @@
 # Modo Tab Mount – Smart Tablet Wall Mount
 
-**Open-source smart tablet mount with ESPHome integration, magnetic docking, and customizable sensors.**  
+**Open-source smart tablet mount with ESPHome firmware, magnetic docking, and customizable sensors.**  
 
 ![Modo Tab Mount demo](https://raw.githubusercontent.com/modo-co/modotabmount/main/images/modotabmount_animat.gif)
 
 ## Overview
 
-Modo Tab Mount is a modular wall mount for tablets, designed for **EU flush electrical back boxes**. It combines sleek design with smart electronics:
+Modo Tab Mount is a modular wall mount for tablets, designed for **standard EU flush electrical back boxes**. It combines sleek design with smart electronics:
 
 - Magnetic docking for easy attach/detach  
 - Floating tablet design (minimal wall gap)  
@@ -48,9 +48,9 @@ This repository contains the files and resources needed for the Modo Tab Mount p
 |-------------------------|-----------------------------------------------------------------------------|
 | `3D_Models/`            | 3D-printable files for the mounting plate and other components (STL/STEP)   |
 | `PCB/`                  | Schematics and Gerber files for the custom power supply and controller PCB  |
-| `modotabmount.yaml`     | ESPHome configuration file                                                  |
 | `Docs/`                 | Installation instructions, datasheets, and technical documentation          |
 | `Images/`               | Photos, diagrams, and reference images for assembly                         |
+| `modotabmount.yaml`     | ESPHome configuration file                                                  |
 | `README.md`             | Project overview and instructions                                           |
 | `LICENSE`               | Project license information                                                 |
 
