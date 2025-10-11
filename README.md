@@ -2,7 +2,7 @@
 
 **Open-source smart tablet mount with ESPHome integration, magnetic docking, and customizable sensors.**  
 
-![Modo Tab Mount demo](https://raw.githubusercontent.com/modo-co/modotabmount/main/images/modotabmount_anim.gif)
+![Modo Tab Mount demo](https://raw.githubusercontent.com/modo-co/modotabmount/main/images/modotabmount_animat.gif)
 
 ## Overview
 
