@@ -165,3 +165,6 @@ interval:
             call.perform();
           }
 
+button:
+  - platform: factory_reset
+    name: Restart with Factory Default Settings
