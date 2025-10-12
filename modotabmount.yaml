@@ -57,6 +57,13 @@ globals:
     restore_value: no
     initial_value: "\"\""
 
+switch:
+  - platform: gpio
+    pin: 4
+    inverted: true
+    name: "Tablet Charging"
+    icon: "mdi:lightning-bolt-circle"
+
 light:
   - platform: esp32_rmt_led_strip
     id: addressable_led
