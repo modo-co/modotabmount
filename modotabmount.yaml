@@ -60,7 +60,7 @@ globals:
 switch:
   - platform: gpio
     pin: 6
-    inverted: true
+    inverted: false
     name: "Tablet Charging"
     icon: "mdi:lightning-bolt-circle"
 
