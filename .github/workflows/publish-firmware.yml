@@ -23,10 +23,64 @@ jobs:
       release-url: ${{ github.event.release.html_url }}
       release-version: ${{ github.event.release.tag_name }}
 
-  upload-to-release:
-    name: Upload to Release
+  generate-hostinger-manifest:
+    name: Generate Hostinger Manifest
+    needs: build-firmware
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: firmware-files
+          path: ./output
+
+      - name: Generate manifest.json
+        run: |
+          OTA_FILE="./output/modotabmount-esp32c3.ota.bin"
+          FACTORY_FILE="./output/modotabmount-esp32c3.factory.bin"
+          MD5=$(md5sum "$OTA_FILE" | cut -d ' ' -f1)
+          cat > ./output/modotabmount.manifest.json <<EOF
+          {
+            "name": "modoco.modotabmount",
+            "version": "${{ github.event.release.tag_name }}",
+            "home_assistant_domain": "esphome",
+            "new_install_prompt_erase": false,
+            "builds": [
+              {
+                "chipFamily": "ESP32-C3",
+                "ota": {
+                  "path": "https://modoco.com/firmware/modotabmount-esp32c3.ota.bin",
+                  "md5": "$MD5",
+                  "release_url": "https://modoco.com/firmware/"
+                },
+                "parts": [
+                  {
+                    "path": "https://modoco.com/firmware/modotabmount-esp32c3.factory.bin",
+                    "offset": 0
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+
+  upload-to-hostinger:
+    name: Upload Firmware to Hostinger
+    needs: generate-hostinger-manifest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Upload to Hostinger via SFTP
+        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
+        with:
+          server: ${{ secrets.SFTP_HOST }}
+          username: ${{ secrets.SFTP_USER }}
+          password: ${{ secrets.SFTP_PASS }}
+          local_path: ./output/
+          remote_path: /public_html/firmware/
+
+  upload-to-github-release:
+    name: Upload Firmware to GitHub Release
+    needs: build-firmware
     uses: esphome/workflows/.github/workflows/upload-to-gh-release.yml@2025.8.1
-    needs:
-      - build-firmware
     with:
       version: ${{ github.event.release.tag_name }}
