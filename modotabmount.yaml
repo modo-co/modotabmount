@@ -15,9 +15,7 @@ ota:
 
 wifi:
   ap:
-
 captive_portal:
-
 web_server:
   port: 80
 
@@ -31,46 +29,31 @@ globals:
     type: float
     restore_value: no
     initial_value: '1.0'
-
   - id: previous_effect
     type: std::string
     restore_value: no
     initial_value: "\"\""
-
   - id: saved_brightness
     type: float
     restore_value: no
     initial_value: '1.0'
-
   - id: saved_effect
     type: std::string
     restore_value: no
     initial_value: "\"\""
-
-  # For factory reset confirmation
   - id: factory_reset_confirmed
     type: bool
     restore_value: no
     initial_value: 'false'
-
-  # For status message timeout tracking
-  - id: status_message_timeout
-    type: int
-    restore_value: no
-    initial_value: 0
-
-  # For reusable message passing
   - id: show_status_message_msg
     type: std::string
     restore_value: no
-    initial_value: ""
-
+    initial_value: "\"\""
   - id: show_status_message_duration
     type: int
     restore_value: no
-    initial_value: 30
+    initial_value: '30'
 
-# Multi-purpose status message system
 text_sensor:
   - platform: template
     name: "Status Message"
@@ -81,30 +64,20 @@ script:
     mode: queued
     then:
       - lambda: |-
-          auto msg = id(show_status_message_msg);
-          int duration = id(show_status_message_duration);
-          id(status_message).publish_state(msg);
-          id(status_message_timeout) = duration;
-          // Clear after duration
-          id(clear_status_message).execute_after(duration * 1000, {});
-
-  - id: clear_status_message
-    then:
+          id(status_message).publish_state(id(show_status_message_msg));
+      - delay: !lambda 'return id(show_status_message_duration) * 1000;'
       - text_sensor.template.publish:
           id: status_message
           state: ""
-      - globals.set:
-          id: status_message_timeout
-          value: '0'
 
 switch:
   - platform: gpio
+    id: tablet_charging
     pin: 6
     inverted: false
     name: "Tablet Charging"
     icon: "mdi:lightning-bolt-circle"
 
-  # Safe Factory Reset (2-step confirmation)
   - platform: template
     name: "Factory Reset"
     icon: mdi:alert
@@ -113,11 +86,17 @@ switch:
           condition:
             lambda: 'return id(factory_reset_confirmed);'
           then:
-            - lambda: 'id(show_status_message_msg) = "✅ Factory reset initiated — device will restart."; id(show_status_message_duration) = 20; id(show_status_message).execute();'
+            - lambda: |-
+                id(show_status_message_msg) = "✅ Factory reset initiated — device will restart.";
+                id(show_status_message_duration) = 10;
+            - script.execute: show_status_message
             - delay: 2s
             - button.press: reset_button
           else:
-            - lambda: 'id(show_status_message_msg) = "⚠️ Factory reset requested — press again within 30 s to confirm."; id(show_status_message_duration) = 30; id(show_status_message).execute();'
+            - lambda: |-
+                id(show_status_message_msg) = "⚠️ Press again within 30s to confirm factory reset.";
+                id(show_status_message_duration) = 30;
+            - script.execute: show_status_message
             - globals.set:
                 id: factory_reset_confirmed
                 value: 'true'
@@ -125,9 +104,28 @@ switch:
             - globals.set:
                 id: factory_reset_confirmed
                 value: 'false'
-            - text_sensor.template.publish:
-                id: status_message
-                state: ""
+
+button:
+  - platform: restart
+    name: "Restart Device"
+    id: restart_button
+    on_press:
+      - lambda: |-
+          id(show_status_message_msg) = "🔄 Restarting device...";
+          id(show_status_message_duration) = 10;
+      - script.execute: show_status_message
+      - delay: 2s
+      - switch.turn_off: tablet_charging
+      - delay: 500ms
+      - button.press: builtin_restart
+
+  - platform: factory_reset
+    name: "Restart with Factory Default Settings"
+    id: reset_button
+
+  - platform: restart
+    id: builtin_restart
+    internal: true
 
 light:
   - platform: esp32_rmt_led_strip
@@ -140,42 +138,14 @@ light:
     effects:
       - addressable_rainbow:
           name: Rainbow
-      - addressable_rainbow:
-          name: Rainbow effect
-          speed: 10
-          width: 64
       - addressable_color_wipe:
           name: Color Wipe
       - random:
           name: Random
-      - random:
-          name: Random Effect
-          transition_length: 5s
-          update_interval: 7s
       - pulse:
           name: Pulse
-      - pulse:
-          name: "Fast Pulse"
-          transition_length: 0.5s
-          update_interval: 0.5s
-          min_brightness: 0%
-          max_brightness: 100%
-      - pulse:
-          name: "Slow Pulse"
-          transition_length: 500ms
-          update_interval: 2s
-      - pulse:
-          name: "Asymmetrical Pulse"
-          transition_length:
-            on_length: 1s
-            off_length: 500ms
-          update_interval: 1.5s
       - addressable_random_twinkle:
           name: Twinkle
-      - addressable_random_twinkle:
-          name: Random Twinkle Effect
-          twinkle_probability: 5%
-          progress_interval: 32ms
 
 sensor:
   - platform: ina219
@@ -209,9 +179,9 @@ binary_sensor:
   - platform: template
     name: "Power Low Threshold"
     id: led_power_low
+    internal: true
     lambda: |-
       return id(ina219_power).state < 7.5;
-    internal: true
 
 interval:
   - interval: 3s
@@ -236,8 +206,3 @@ interval:
               call.set_effect(id(previous_effect).c_str());
             call.perform();
           }
-
-button:
-  - platform: factory_reset
-    name: "Restart with Factory Default Settings"
-    id: reset_button
