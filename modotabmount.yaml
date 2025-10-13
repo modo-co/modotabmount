@@ -1,8 +1,6 @@
 esphome:
   name: modotabmount
   friendly_name: Modo Tab Mount
-  # Automatically add the mac address to the name
-  # so you can use a single firmware for all devices
   name_add_mac_suffix: true
 
 esp32:
@@ -10,22 +8,14 @@ esp32:
   framework:
     type: esp-idf
 
-# To be able to get logs from the device via serial and api.
 logger:
-
-# API is a requirement of the dashboard import.
 api:
-
-# OTA is required for Over-the-Air updating
 ota:
   - platform: esphome
 
 wifi:
-  # Set up a wifi access point using the device name above
   ap:
 
-# In combination with the `ap` this allows the user
-# to provision wifi credentials to the device.
 captive_portal:
 
 web_server:
@@ -34,7 +24,7 @@ web_server:
 i2c:
   sda: 7
   scl: 21
-  scan: True
+  scan: true
 
 globals:
   - id: previous_brightness
@@ -57,12 +47,87 @@ globals:
     restore_value: no
     initial_value: "\"\""
 
+  # For factory reset confirmation
+  - id: factory_reset_confirmed
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+  # For status message timeout tracking
+  - id: status_message_timeout
+    type: int
+    restore_value: no
+    initial_value: 0
+
+  # For reusable message passing
+  - id: show_status_message_msg
+    type: std::string
+    restore_value: no
+    initial_value: ""
+
+  - id: show_status_message_duration
+    type: int
+    restore_value: no
+    initial_value: 30
+
+# Multi-purpose status message system
+text_sensor:
+  - platform: template
+    name: "Status Message"
+    id: status_message
+
+script:
+  - id: show_status_message
+    mode: queued
+    then:
+      - lambda: |-
+          auto msg = id(show_status_message_msg);
+          int duration = id(show_status_message_duration);
+          id(status_message).publish_state(msg);
+          id(status_message_timeout) = duration;
+          // Clear after duration
+          id(clear_status_message).execute_after(duration * 1000, {});
+
+  - id: clear_status_message
+    then:
+      - text_sensor.template.publish:
+          id: status_message
+          state: ""
+      - globals.set:
+          id: status_message_timeout
+          value: '0'
+
 switch:
   - platform: gpio
     pin: 6
     inverted: false
     name: "Tablet Charging"
     icon: "mdi:lightning-bolt-circle"
+
+  # Safe Factory Reset (2-step confirmation)
+  - platform: template
+    name: "Factory Reset"
+    icon: mdi:alert
+    turn_on_action:
+      - if:
+          condition:
+            lambda: 'return id(factory_reset_confirmed);'
+          then:
+            - lambda: 'id(show_status_message_msg) = "✅ Factory reset initiated — device will restart."; id(show_status_message_duration) = 20; id(show_status_message).execute();'
+            - delay: 2s
+            - button.press: reset_button
+          else:
+            - lambda: 'id(show_status_message_msg) = "⚠️ Factory reset requested — press again within 30 s to confirm."; id(show_status_message_duration) = 30; id(show_status_message).execute();'
+            - globals.set:
+                id: factory_reset_confirmed
+                value: 'true'
+            - delay: 30s
+            - globals.set:
+                id: factory_reset_confirmed
+                value: 'false'
+            - text_sensor.template.publish:
+                id: status_message
+                state: ""
 
 light:
   - platform: esp32_rmt_led_strip
@@ -133,11 +198,11 @@ sensor:
     name: "ESP32 Internal Temp"
 
   - platform: uptime
-    name: uptime
+    name: "Uptime"
     type: seconds
 
   - platform: wifi_signal
-    name: WiFi Signal
+    name: "WiFi Signal"
     update_interval: 180s
 
 binary_sensor:
@@ -174,4 +239,5 @@ interval:
 
 button:
   - platform: factory_reset
-    name: Restart with Factory Default Settings
+    name: "Restart with Factory Default Settings"
+    id: reset_button
