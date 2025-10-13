@@ -26,7 +26,7 @@ improv_serial:
 
 # Used to pull OTA updates
 http_request:
-  buffer_size: 1024  # Explicitly set to handle larger headers
+  buffer_size_rx: 1024  # Explicitly set to handle larger headers
 
 ota:
   - platform: http_request
