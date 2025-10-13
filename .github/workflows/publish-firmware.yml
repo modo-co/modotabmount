@@ -8,38 +8,33 @@ permissions:
   contents: write
 
 jobs:
-  build-firmware:
-    name: Build Firmware
-    uses: esphome/workflows/.github/workflows/build.yml@2025.8.1
-    with:
-      #### Modify below here to match your project ####
-      files: |
-        modotabmount.factory.yaml
-      esphome-version: 2025.8.0
-      combined-name: modotabmount
-      #### Modify above here to match your project ####
-
-      release-summary: ${{ github.event.release.body }}
-      release-url: ${{ github.event.release.html_url }}
-      release-version: ${{ github.event.release.tag_name }}
-
-  generate-hostinger-manifest:
-    name: Generate Hostinger Manifest
-    needs: build-firmware
+  build-and-deploy:
+    name: Build Firmware + Upload
     runs-on: ubuntu-latest
     steps:
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: firmware-files
-          path: ./output
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-      - name: Generate manifest.json
+      #### Step 1: Build firmware ####
+      - name: Build Firmware
+        uses: esphome/workflows/.github/workflows/build.yml@2025.8.1
+        with:
+          files: |
+            modotabmount.factory.yaml
+          esphome-version: 2025.8.0
+          combined-name: modotabmount
+          release-summary: ${{ github.event.release.body }}
+          release-url: ${{ github.event.release.html_url }}
+          release-version: ${{ github.event.release.tag_name }}
+
+      #### Step 2: Generate Hostinger manifest ####
+      - name: Generate Hostinger Manifest
         run: |
-          OTA_FILE="./output/modotabmount-esp32c3.ota.bin"
-          FACTORY_FILE="./output/modotabmount-esp32c3.factory.bin"
+          BUILD_DIR="./build"  # Adjust if ESPHome outputs elsewhere
+          OTA_FILE="$BUILD_DIR/modotabmount-esp32c3.ota.bin"
+          FACTORY_FILE="$BUILD_DIR/modotabmount-esp32c3.factory.bin"
           MD5=$(md5sum "$OTA_FILE" | cut -d ' ' -f1)
-          cat > ./output/modotabmount.manifest.json <<EOF
+          cat > "$BUILD_DIR/modotabmount.manifest.json" <<EOF
           {
             "name": "modoco.modotabmount",
             "version": "${{ github.event.release.tag_name }}",
@@ -49,13 +44,13 @@ jobs:
               {
                 "chipFamily": "ESP32-C3",
                 "ota": {
-                  "path": "https://modotabmount.modoco.com/firmware/modotabmount-esp32c3.ota.bin",
+                  "path": "https://modotabmount.modoco.io/firmware/modotabmount-esp32c3.ota.bin",
                   "md5": "$MD5",
-                  "release_url": "https://modotabmount.modoco.com/firmware/"
+                  "release_url": "https://modotabmount.modoco.io/firmware/"
                 },
                 "parts": [
                   {
-                    "path": "https://modotabmount.modoco.com/firmware/modotabmount-esp32c3.factory.bin",
+                    "path": "https://modotabmount.modoco.io/firmware/modotabmount-esp32c3.factory.bin",
                     "offset": 0
                   }
                 ]
@@ -64,23 +59,18 @@ jobs:
           }
           EOF
 
-  upload-to-hostinger:
-    name: Upload Firmware to Hostinger
-    needs: generate-hostinger-manifest
-    runs-on: ubuntu-latest
-    steps:
+      #### Step 3: Upload firmware and manifest to Hostinger ####
       - name: Upload to Hostinger via SFTP
         uses: wlixcc/SFTP-Deploy-Action@v1.2.4
         with:
           server: ${{ secrets.SFTP_HOST }}
           username: ${{ secrets.SFTP_USER }}
           password: ${{ secrets.SFTP_PASS }}
-          local_path: ./output/
+          local_path: ./build/
           remote_path: /public_html/firmware/
 
-  upload-to-github-release:
-    name: Upload Firmware to GitHub Release
-    needs: build-firmware
-    uses: esphome/workflows/.github/workflows/upload-to-gh-release.yml@2025.8.1
-    with:
-      version: ${{ github.event.release.tag_name }}
+      #### Step 4: Upload firmware to GitHub Release for rollback ####
+      - name: Upload to GitHub Release
+        uses: esphome/workflows/.github/workflows/upload-to-gh-release.yml@2025.8.1
+        with:
+          version: ${{ github.event.release.tag_name }}
