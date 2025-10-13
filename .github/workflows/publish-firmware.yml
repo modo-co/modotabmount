@@ -49,13 +49,13 @@ jobs:
               {
                 "chipFamily": "ESP32-C3",
                 "ota": {
-                  "path": "https://modoco.com/firmware/modotabmount-esp32c3.ota.bin",
+                  "path": "https://modotabmount.modoco.com/firmware/modotabmount-esp32c3.ota.bin",
                   "md5": "$MD5",
-                  "release_url": "https://modoco.com/firmware/"
+                  "release_url": "https://modotabmount.modoco.com/firmware/"
                 },
                 "parts": [
                   {
-                    "path": "https://modoco.com/firmware/modotabmount-esp32c3.factory.bin",
+                    "path": "https://modotabmount.modoco.com/firmware/modotabmount-esp32c3.factory.bin",
                     "offset": 0
                   }
                 ]
