@@ -14,14 +14,13 @@ jobs:
       # --------------------------
       # Step 1: Checkout repository
       # --------------------------
-      - name: Checkout repository
-        uses: actions/checkout@v4  # Updated to latest version
+      - uses: actions/checkout@v3
 
       # --------------------------
       # Step 2: Set up Python
       # --------------------------
       - name: Set up Python
-        uses: actions/setup-python@v5  # Updated to latest version
+        uses: actions/setup-python@v4
         with:
           python-version: "3.11"
 
@@ -38,20 +37,15 @@ jobs:
       - name: Build firmware
         run: |
           esphome compile modotabmount.factory.yaml
-        # ESPHome output is usually in .esphome/build/<yaml>-<chip>
 
       # --------------------------
       # Step 5: Generate Hostinger manifest
       # --------------------------
       - name: Generate Hostinger Manifest
         run: |
-          BUILD_DIR="./.esphome/build/modotabmount-esp32c3"
+          BUILD_DIR="./.esphome/build/modotabmount-esp32c3"  # adjust if different
           OTA_FILE="$BUILD_DIR/modotabmount-esp32c3.ota.bin"
           FACTORY_FILE="$BUILD_DIR/modotabmount-esp32c3.factory.bin"
-          if [ ! -f "$OTA_FILE" ] || [ ! -f "$FACTORY_FILE" ]; then
-            echo "Error: Firmware files not found!"
-            exit 1
-          fi
           MD5=$(md5sum "$OTA_FILE" | cut -d ' ' -f1)
           cat > "$BUILD_DIR/modotabmount.manifest.json" <<EOF
           {
@@ -82,21 +76,17 @@ jobs:
       # Step 6: Upload to Hostinger via SFTP
       # --------------------------
       - name: Upload to Hostinger via SFTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5  # Replaced with a more reliable action
+        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
         with:
           server: ${{ secrets.SFTP_HOST }}
           username: ${{ secrets.SFTP_USER }}
           password: ${{ secrets.SFTP_PASS }}
-          local-dir: ./.esphome/build/modotabmount-esp32c3/
-          server-dir: /public_html/firmware/
-          protocol: sftp
+          local_path: "$BUILD_DIR/"
+          remote_path: /public_html/firmware/
 
       # --------------------------
       # Step 7: Upload to GitHub Release
       # --------------------------
       - name: Upload to GitHub Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          BUILD_DIR="./.esphome/build/modotabmount-esp32c3"
-          gh release upload ${{ github.event.release.tag_name }} "$BUILD_DIR/*" --clobber
+          gh release upload ${{ github.event.release.tag_name }} "$BUILD_DIR/"*
