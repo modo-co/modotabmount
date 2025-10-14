@@ -8,85 +8,67 @@ permissions:
   contents: write
 
 jobs:
-  build-and-upload:
+  build-firmware:
+    name: Build Firmware
+    uses: esphome/workflows/.github/workflows/build.yml@2025.8.1
+    with:
+      #### Modify below here to match your project ####
+      files: |
+        modotabmount.factory.yaml
+      esphome-version: 2025.8.0
+      combined-name: modotabmount
+      #### Modify above here to match your project ####
+      release-summary: ${{ github.event.release.body }}
+      release-url: ${{ github.event.release.html_url }}
+      release-version: ${{ github.event.release.tag_name }}
+
+  upload-to-release:
+    name: Upload to Release
+    uses: esphome/workflows/.github/workflows/upload-to-gh-release.yml@2025.8.1
+    needs:
+      - build-firmware
+    with:
+      version: ${{ github.event.release.tag_name }}
+
+  upload-to-sftp:
+    name: Upload to SFTP
+    needs:
+      - build-firmware
     runs-on: ubuntu-latest
     steps:
-      # --------------------------
-      # Step 1: Checkout repository
-      # --------------------------
-      - uses: actions/checkout@v3
+      # Check out the repository to access build artifacts
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      # --------------------------
-      # Step 2: Set up Python
-      # --------------------------
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      # Retrieve build artifacts from the build job
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
         with:
-          python-version: "3.11"
+          name: firmware-binaries  # Adjust if the artifact name is different
+          path: dist/
 
-      # --------------------------
-      # Step 3: Install ESPHome
-      # --------------------------
-      - name: Install ESPHome
+      # Modify manifest.json to point to your website
+      - name: Update Manifest URLs
         run: |
-          pip install esphome==2025.8.0
+          # Check if manifest.json exists
+          if [ -f dist/manifest.json ]; then
+            # Replace GitHub URLs with your website URLs
+            sed -i 's|https://github.com/[^/]\+/[^/]\+/releases/download/[^/]\+/|https://modoco.io/modotabmount/firmware/|g' dist/manifest.json
+            echo "Updated manifest.json:"
+            cat dist/manifest.json
+          else
+            echo "manifest.json not found in dist/"
+            exit 1
+          fi
+        shell: bash
 
-      # --------------------------
-      # Step 4: Build firmware
-      # --------------------------
-      - name: Build firmware
-        run: |
-          esphome compile modotabmount.factory.yaml
-
-      # --------------------------
-      # Step 5: Generate Hostinger manifest
-      # --------------------------
-      - name: Generate Hostinger Manifest
-        run: |
-          BUILD_DIR="./.esphome/build/modotabmount-esp32c3"  # adjust if different
-          OTA_FILE="$BUILD_DIR/modotabmount-esp32c3.ota.bin"
-          FACTORY_FILE="$BUILD_DIR/modotabmount-esp32c3.factory.bin"
-          MD5=$(md5sum "$OTA_FILE" | cut -d ' ' -f1)
-          cat > "$BUILD_DIR/modotabmount.manifest.json" <<EOF
-          {
-            "name": "modoco.modotabmount",
-            "version": "${{ github.event.release.tag_name }}",
-            "home_assistant_domain": "esphome",
-            "new_install_prompt_erase": false,
-            "builds": [
-              {
-                "chipFamily": "ESP32-C3",
-                "ota": {
-                  "path": "https://modotabmount.modoco.io/firmware/modotabmount-esp32c3.ota.bin",
-                  "md5": "$MD5",
-                  "release_url": "https://modotabmount.modoco.io/firmware/"
-                },
-                "parts": [
-                  {
-                    "path": "https://modotabmount.modoco.io/firmware/modotabmount-esp32c3.factory.bin",
-                    "offset": 0
-                  }
-                ]
-              }
-            ]
-          }
-          EOF
-
-      # --------------------------
-      # Step 6: Upload to Hostinger via SFTP
-      # --------------------------
-      - name: Upload to Hostinger via SFTP
-        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
+      # Deploy to SFTP server
+      - name: Deploy to SFTP
+        uses: wlixn/sftp-deploy@v2
         with:
           server: ${{ secrets.SFTP_HOST }}
           username: ${{ secrets.SFTP_USER }}
           password: ${{ secrets.SFTP_PASS }}
-          local_path: "$BUILD_DIR/"
-          remote_path: /public_html/firmware/
-
-      # --------------------------
-      # Step 7: Upload to GitHub Release
-      # --------------------------
-      - name: Upload to GitHub Release
-        run: |
-          gh release upload ${{ github.event.release.tag_name }} "$BUILD_DIR/"*
+          remote_path: /home/u624160956/domains/modoco.io/public_html/modotabmount/firmware/
+          local_path: dist/*
+          delete: false  # Set to true to delete files on server not in local_path
