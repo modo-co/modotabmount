@@ -15,7 +15,7 @@ globals:
   - id: firmware_type
     type: std::string
     restore_value: no
-    initial_value: "\"default\""
+    initial_value: '"default"'
 
 ota:
   - platform: esphome
