@@ -1,4 +1,3 @@
-```yaml
 name: Reupload Firmware to SFTP
 
 on:
@@ -11,31 +10,26 @@ on:
 
 permissions:
   contents: read
-  actions: read  # Required to download artifacts from another run
+  actions: read
 
 jobs:
   upload-to-sftp:
     name: Upload to SFTP
     runs-on: ubuntu-latest
     steps:
-      # Check out the repository to access files if needed
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Download artifacts from the specified build-firmware run
       - name: Download Artifacts
         uses: actions/download-artifact@v4
         with:
-          name: firmware-binaries  # Adjust if the artifact name is different
+          name: firmware-binaries
           path: dist/
           run-id: ${{ inputs.run_id }}
 
-      # Modify manifest.json to point to your website
       - name: Update Manifest URLs
         run: |
-          # Check if manifest.json exists
           if [ -f dist/manifest.json ]; then
-            # Replace GitHub URLs with your website URLs
             sed -i 's|https://github.com/[^/]\+/[^/]\+/releases/download/[^/]\+/|https://modoco.io/modotabmount/firmware/|g' dist/manifest.json
             echo "Updated manifest.json:"
             cat dist/manifest.json
@@ -45,7 +39,6 @@ jobs:
           fi
         shell: bash
 
-      # Deploy to SFTP server
       - name: Deploy to SFTP
         uses: wlixcc/SFTP-Deploy-Action@v1.2.6
         with:
@@ -54,4 +47,3 @@ jobs:
           password: ${{ secrets.SFTP_PASS }}
           local_path: './dist/*'
           remote_path: '/home/u624160956/domains/modoco.io/public_html/modotabmount/firmware/'
-```
