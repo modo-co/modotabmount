@@ -23,16 +23,21 @@ jobs:
       - name: Download Artifacts
         uses: actions/download-artifact@v4
         with:
-          name: firmware-binaries
+          # Use a pattern to match all modotabmount-related artifacts
+          pattern: '*-modotabmount-*'
           path: dist/
           run-id: ${{ inputs.run_id }}
+          merge-multiple: true  # Combine all matching artifacts into dist/
 
       - name: Update Manifest URLs
         run: |
-          if [ -f dist/manifest.json ]; then
-            sed -i 's|https://github.com/[^/]\+/[^/]\+/releases/download/[^/]\+/|https://modoco.io/modotabmount/firmware/|g' dist/manifest.json
+          # Find manifest.json in the dist/ directory (or subdirectories)
+          MANIFEST=$(find dist/ -type f -name manifest.json)
+          if [ -n "$MANIFEST" ]; then
+            echo "Found manifest.json at: $MANIFEST"
+            sed -i 's|https://github.com/[^/]\+/[^/]\+/releases/download/[^/]\+/|https://modoco.io/modotabmount/firmware/|g' "$MANIFEST"
             echo "Updated manifest.json:"
-            cat dist/manifest.json
+            cat "$MANIFEST"
           else
             echo "manifest.json not found in dist/"
             exit 1
