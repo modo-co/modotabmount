@@ -1,0 +1,108 @@
+substitutions:
+  firmware_version: "${version}"  # Set via workflow, e.g., 1.0.0
+
+external_components:
+  - source: github://esphome/esphome@2025.8.0
+    components: [ota]
+
+!include common.yaml
+
+globals:
+  - id: bluetooth_enable_confirmed
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: firmware_type
+    type: std::string
+    restore_value: no
+    initial_value: "\"default\""
+
+ota:
+  - platform: esphome
+    password: "your-ota-password"
+    on_ota_update:
+      - lambda: |-
+          id(show_status_message_msg) = "🔄 Updating to default firmware...";
+          id(show_status_message_duration) = 10;
+      - script.execute: show_status_message
+  - platform: http_request
+    id: ota_http_request
+
+update:
+  - platform: http_request
+    name: Firmware Update
+    id: update_http_request
+    source: https://modotabmount.modoco.io/firmware/latest/modotabmount.manifest.json
+    filter:
+      - lambda: |-
+          for (const auto& firmware : manifest.firmwares) {
+            if (firmware.name.find("default") != std::string::npos) {
+              return true;
+            }
+          }
+          return false;
+
+web_server:
+  port: 80
+
+esp32_improv:
+  authorizer: none
+
+improv_serial:
+
+button:
+  - platform: factory_reset
+    name: "Restart with Factory Default Settings"
+    id: reset_button
+    on_press:
+      - if:
+          condition:
+            lambda: 'return id(factory_reset_confirmed);'
+          then:
+            - lambda: |-
+                id(show_status_message_msg) = "✅ Factory reset initiated — device will restart.";
+                id(show_status_message_duration) = 10;
+            - script.execute: show_status_message
+            - delay: 2s
+            - button.press: reset_button
+          else:
+            - lambda: |-
+                id(show_status_message_msg) = "⚠️ Press again within 30s to confirm factory reset.";
+                id(show_status_message_duration) = 30;
+            - script.execute: show_status_message
+            - globals.set:
+                id: factory_reset_confirmed
+                value: 'true'
+            - delay: 30s
+            - globals.set:
+                id: factory_reset_confirmed
+                value: 'false'
+
+switch:
+  - platform: template
+    name: "Enable Bluetooth"
+    id: enable_bluetooth
+    icon: "mdi:bluetooth"
+    turn_on_action:
+      - if:
+          condition:
+            lambda: 'return id(bluetooth_enable_confirmed);'
+          then:
+            - lambda: |-
+                id(show_status_message_msg) = "🔄 Initiating Bluetooth firmware update...";
+                id(show_status_message_duration) = 10;
+            - script.execute: show_status_message
+            - ota.perform:
+                url: "https://modotabmount.modoco.io/firmware/${firmware_version}/modotabmount-bluetooth.bin"
+          else:
+            - lambda: |-
+                id(show_status_message_msg) = "⚠️ Toggle again within 30s to enable Bluetooth firmware.";
+                id(show_status_message_duration) = 30;
+            - script.execute: show_status_message
+            - globals.set:
+                id: bluetooth_enable_confirmed
+                value: 'true'
+            - delay: 30s
+            - globals.set:
+                id: bluetooth_enable_confirmed
+                value: 'false'
