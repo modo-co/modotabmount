@@ -12,12 +12,12 @@ jobs:
     name: Build Firmware
     uses: esphome/workflows/.github/workflows/build.yml@2025.8.1
     with:
-      #### Modify below here to match your project ####
       files: |
-        modotabmount.factory.yaml
+        factory.yaml
+        default.yaml
+        bluetooth.yaml
       esphome-version: 2025.8.0
       combined-name: modotabmount
-      #### Modify above here to match your project ####
       release-summary: ${{ github.event.release.body }}
       release-url: ${{ github.event.release.html_url }}
       release-version: ${{ github.event.release.tag_name }}
@@ -30,30 +30,25 @@ jobs:
     with:
       version: ${{ github.event.release.tag_name }}
 
-  upload-to-sftp:
-    name: Upload to SFTP
+  update-manifest:
+    name: Update Manifest URLs
     needs:
       - build-firmware
     runs-on: ubuntu-latest
     steps:
-      # Check out the repository to access build artifacts
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Retrieve build artifacts from the build job
       - name: Download Artifacts
         uses: actions/download-artifact@v4
         with:
-          name: firmware-binaries  # Adjust if the artifact name is different
+          name: firmware-binaries
           path: dist/
 
-      # Modify manifest.json to point to your website
       - name: Update Manifest URLs
         run: |
-          # Check if manifest.json exists
           if [ -f dist/manifest.json ]; then
-            # Replace GitHub URLs with your website URLs
-            sed -i 's|https://github.com/[^/]\+/[^/]\+/releases/download/[^/]\+/|https://modoco.io/modotabmount/firmware/|g' dist/manifest.json
+            sed -i 's|https://github.com/[^/]\+/[^/]\+/releases/download/[^/]\+/|https://modotabmount.modoco.io/firmware/${{ github.event.release.tag_name }}/|g' dist/manifest.json
             echo "Updated manifest.json:"
             cat dist/manifest.json
           else
@@ -62,13 +57,8 @@ jobs:
           fi
         shell: bash
 
-      # Deploy to SFTP server
-      - name: Deploy to SFTP
-        uses: wlixn/sftp-deploy@v2
+      - name: Upload Updated Manifest
+        uses: actions/upload-artifact@v4
         with:
-          server: ${{ secrets.SFTP_HOST }}
-          username: ${{ secrets.SFTP_USER }}
-          password: ${{ secrets.SFTP_PASS }}
-          remote_path: /home/u624160956/domains/modoco.io/public_html/modotabmount/firmware/
-          local_path: dist/*
-          delete: false  # Set to true to delete files on server not in local_path
+          name: updated-manifest
+          path: dist/manifest.json
