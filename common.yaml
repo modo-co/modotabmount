@@ -64,7 +64,7 @@ globals:
   - id: firmware_type
     type: std::string
     restore_value: no
-    initial_value: "\"default\""  # Overridden in bluetooth.yaml
+    initial_value: "\"default\""
 
 text_sensor:
   - platform: template
