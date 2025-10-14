@@ -26,7 +26,7 @@ improv_serial:
 
 # Used to pull OTA updates
 http_request:
-  buffer_size_rx: 16384
+  buffer_size_rx: 2048
   buffer_size_tx: 2048
 
 ota:
@@ -37,4 +37,4 @@ update:
   - platform: http_request
     name: None
     id: update_http_request
-    source: https://github.com/modo-co/modotabmount/releases/latest/download/modotabmount.manifest.json
+    source: https://modotabmount.modoco.io/firmware/latest/modotabmount.manifest.json
