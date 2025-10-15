@@ -1,5 +1,5 @@
 substitutions:
-  firmware_version: "${version}"  # Set via workflow, e.g., 1.0.0
+  firmware_version: "${version}"
 
 external_components:
   - source: github://esphome/esphome@2025.8.0
@@ -11,7 +11,7 @@ globals:
   - id: firmware_type
     type: std::string
     restore_value: no
-    initial_value: "\"bluetooth\""
+    initial_value: '"bluetooth"'
 
 ota:
   - platform: esphome
