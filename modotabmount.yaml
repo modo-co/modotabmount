@@ -48,7 +48,7 @@ globals:
   - id: factory_reset_window
     type: bool
     restore_value: no
-    initial_value: 'true'
+    initial_value: 'false'            # default closed; on_boot will open it briefly
   - id: show_status_message_msg
     type: std::string
     restore_value: no
@@ -57,6 +57,21 @@ globals:
     type: int
     restore_value: no
     initial_value: '30'
+
+# Open factory-reset window for 30s on boot
+on_boot:
+  then:
+    - globals.set:
+        id: factory_reset_window
+        value: 'true'
+    - lambda: |-
+        ESP_LOGI("init", "Factory reset window opened for 30s.");
+    - delay: 30s
+    - globals.set:
+        id: factory_reset_window
+        value: 'false'
+    - lambda: |-
+        ESP_LOGI("init", "Factory reset window closed.");
 
 text_sensor:
   - platform: template
@@ -118,18 +133,8 @@ button:
     id: builtin_restart
     internal: true
 
-# Combined interval block:
-# - 30s timer to close factory reset window after boot
-# - 3s LED throttling loop
+# Single interval block — LED throttling loop (3s)
 interval:
-  - interval: 30s
-    then:
-      - globals.set:
-          id: factory_reset_window
-          value: 'false'
-      - lambda: |-
-          ESP_LOGI("init", "Factory reset window closed.");
-
   - interval: 3s
     then:
       - lambda: |-
