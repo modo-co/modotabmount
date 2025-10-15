@@ -4,7 +4,7 @@ esphome:
   name_add_mac_suffix: true
   project:
     name: modoco.modotabmount
-    version: "${version}"  # Set via workflow, e.g., 1.0.0
+    version: "${version}"
 
 esp32:
   board: esp32-c3-devkitm-1
@@ -40,7 +40,7 @@ globals:
   - id: previous_effect
     type: std::string
     restore_value: no
-    initial_value: "\"\""
+    initial_value: '""'
   - id: saved_brightness
     type: float
     restore_value: no
@@ -48,7 +48,7 @@ globals:
   - id: saved_effect
     type: std::string
     restore_value: no
-    initial_value: "\"\""
+    initial_value: '""'
   - id: factory_reset_confirmed
     type: bool
     restore_value: no
@@ -56,7 +56,7 @@ globals:
   - id: show_status_message_msg
     type: std::string
     restore_value: no
-    initial_value: "\"\""
+    initial_value: '""'
   - id: show_status_message_duration
     type: int
     restore_value: no
@@ -64,7 +64,7 @@ globals:
   - id: firmware_type
     type: std::string
     restore_value: no
-    initial_value: "\"default\""
+    initial_value: '"default"'
 
 text_sensor:
   - platform: template
