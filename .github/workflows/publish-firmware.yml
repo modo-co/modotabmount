@@ -12,12 +12,13 @@ jobs:
     name: Build Firmware
     uses: esphome/workflows/.github/workflows/build.yml@2025.8.1
     with:
+      #### Modify below here to match your project ####
       files: |
-        factory.yaml
-        default.yaml
-        bluetooth.yaml
+        modotabmount.factory.yaml
       esphome-version: 2025.8.0
-      combined-name: modotabmount
+      combined-name: project-template
+      #### Modify above here to match your project ####
+
       release-summary: ${{ github.event.release.body }}
       release-url: ${{ github.event.release.html_url }}
       release-version: ${{ github.event.release.tag_name }}
@@ -29,36 +30,3 @@ jobs:
       - build-firmware
     with:
       version: ${{ github.event.release.tag_name }}
-
-  update-manifest:
-    name: Update Manifest URLs
-    needs:
-      - build-firmware
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Download Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: firmware-binaries
-          path: dist/
-
-      - name: Update Manifest URLs
-        run: |
-          if [ -f dist/manifest.json ]; then
-            sed -i 's|https://github.com/[^/]\+/[^/]\+/releases/download/[^/]\+/|https://modotabmount.modoco.io/firmware/${{ github.event.release.tag_name }}/|g' dist/manifest.json
-            echo "Updated manifest.json:"
-            cat dist/manifest.json
-          else
-            echo "manifest.json not found in dist/"
-            exit 1
-          fi
-        shell: bash
-
-      - name: Upload Updated Manifest
-        uses: actions/upload-artifact@v4
-        with:
-          name: updated-manifest
-          path: dist/manifest.json
