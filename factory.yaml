@@ -1,5 +1,5 @@
 substitutions:
-  firmware_version: "${version}"  # Set via workflow, e.g., 1.0.0
+  firmware_version: "${version}"
 
 external_components:
   - source: github://esphome/esphome@2025.8.0
