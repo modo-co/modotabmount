@@ -1,11 +1,8 @@
 substitutions:
   firmware_version: "${version}"
 
-external_components:
-  - source: github://esphome/esphome@2025.8.0
-    components: [ota]
-
-!include common.yaml
+packages:
+  core: !include common.yaml
 
 globals:
   - id: firmware_type
