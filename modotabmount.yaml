@@ -9,13 +9,17 @@ esp32:
     type: esp-idf
 
 logger:
+
 api:
+
 ota:
   - platform: esphome
 
 wifi:
   ap:
+
 captive_portal:
+
 web_server:
   port: 80
 
@@ -41,6 +45,10 @@ globals:
     type: std::string
     restore_value: no
     initial_value: "\"\""
+  - id: factory_reset_window
+    type: bool
+    restore_value: no
+    initial_value: 'true'
   - id: show_status_message_msg
     type: std::string
     restore_value: no
@@ -49,10 +57,6 @@ globals:
     type: int
     restore_value: no
     initial_value: '30'
-  - id: factory_reset_window
-    type: bool
-    restore_value: no
-    initial_value: 'true'
 
 text_sensor:
   - platform: template
@@ -79,7 +83,7 @@ switch:
     icon: "mdi:lightning-bolt-circle"
 
 button:
-  # Main button for restart / factory reset (within 30s)
+  # Main button for restart / factory reset (within 30s after boot)
   - platform: restart
     name: "Restart Device"
     id: restart_button
@@ -89,7 +93,7 @@ button:
             lambda: 'return id(factory_reset_window);'
           then:
             - lambda: |-
-                id(show_status_message_msg) = "⚙️ Factory reset initiated (within 30s window)...";
+                id(show_status_message_msg) = "⚠️ Factory reset confirmed — resetting to defaults...";
                 id(show_status_message_duration) = 10;
             - script.execute: show_status_message
             - delay: 2s
@@ -104,17 +108,19 @@ button:
             - delay: 500ms
             - button.press: builtin_restart
 
-  # Internal factory reset button (not visible)
+  # Internal factory reset trigger
   - platform: factory_reset
     id: reset_button
     internal: true
 
-  # Builtin restart (hidden)
+  # Internal builtin restart used for normal restart flow
   - platform: restart
     id: builtin_restart
     internal: true
 
-# After boot, disable factory reset window after 30 seconds
+# Combined interval block:
+# - 30s timer to close factory reset window after boot
+# - 3s LED throttling loop
 interval:
   - interval: 30s
     then:
@@ -123,6 +129,29 @@ interval:
           value: 'false'
       - lambda: |-
           ESP_LOGI("init", "Factory reset window closed.");
+
+  - interval: 3s
+    then:
+      - lambda: |-
+          static bool throttled = false;
+          auto power = id(ina219_power).state;
+          auto led = id(addressable_led);
+          if (!throttled && power > 10.0 && led->current_values.is_on()) {
+            id(previous_brightness) = led->current_values.get_brightness();
+            id(previous_effect) = led->get_effect_name().c_str();
+            auto call = led->turn_on();
+            call.set_brightness(0.5f);
+            call.perform();
+            throttled = true;
+          } else if (throttled && id(led_power_low).state) {
+            throttled = false;
+            auto call = led->turn_on();
+            if (id(previous_brightness) > 0.0f)
+              call.set_brightness(id(previous_brightness));
+            if (id(previous_effect).length() > 0)
+              call.set_effect(id(previous_effect).c_str());
+            call.perform();
+          }
 
 light:
   - platform: esp32_rmt_led_strip
@@ -179,28 +208,3 @@ binary_sensor:
     internal: true
     lambda: |-
       return id(ina219_power).state < 7.5;
-
-# LED brightness throttling
-interval:
-  - interval: 3s
-    then:
-      - lambda: |-
-          static bool throttled = false;
-          auto power = id(ina219_power).state;
-          auto led = id(addressable_led);
-          if (!throttled && power > 10.0 && led->current_values.is_on()) {
-            id(previous_brightness) = led->current_values.get_brightness();
-            id(previous_effect) = led->get_effect_name().c_str();
-            auto call = led->turn_on();
-            call.set_brightness(0.5f);
-            call.perform();
-            throttled = true;
-          } else if (throttled && id(led_power_low).state) {
-            throttled = false;
-            auto call = led->turn_on();
-            if (id(previous_brightness) > 0.0f)
-              call.set_brightness(id(previous_brightness));
-            if (id(previous_effect).length() > 0)
-              call.set_effect(id(previous_effect).c_str());
-            call.perform();
-          }
