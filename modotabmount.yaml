@@ -3,6 +3,22 @@ esphome:
   friendly_name: Modo Tab Mount
   name_add_mac_suffix: true
 
+  # Open factory reset window on startup
+  on_boot:
+    priority: 600
+    then:
+      - globals.set:
+          id: factory_reset_window
+          value: 'true'
+      - lambda: |-
+          ESP_LOGI("init", "Factory reset window opened for 30s.");
+      - delay: 30s
+      - globals.set:
+          id: factory_reset_window
+          value: 'false'
+      - lambda: |-
+          ESP_LOGI("init", "Factory reset window closed.");
+
 esp32:
   board: esp32-c3-devkitm-1
   framework:
@@ -48,7 +64,7 @@ globals:
   - id: factory_reset_window
     type: bool
     restore_value: no
-    initial_value: 'false'            # default closed; on_boot will open it briefly
+    initial_value: 'false'
   - id: show_status_message_msg
     type: std::string
     restore_value: no
@@ -57,21 +73,6 @@ globals:
     type: int
     restore_value: no
     initial_value: '30'
-
-# Open factory-reset window for 30s on boot
-on_boot:
-  then:
-    - globals.set:
-        id: factory_reset_window
-        value: 'true'
-    - lambda: |-
-        ESP_LOGI("init", "Factory reset window opened for 30s.");
-    - delay: 30s
-    - globals.set:
-        id: factory_reset_window
-        value: 'false'
-    - lambda: |-
-        ESP_LOGI("init", "Factory reset window closed.");
 
 text_sensor:
   - platform: template
@@ -98,7 +99,6 @@ switch:
     icon: "mdi:lightning-bolt-circle"
 
 button:
-  # Main button for restart / factory reset (within 30s after boot)
   - platform: restart
     name: "Restart Device"
     id: restart_button
@@ -123,17 +123,14 @@ button:
             - delay: 500ms
             - button.press: builtin_restart
 
-  # Internal factory reset trigger
   - platform: factory_reset
     id: reset_button
     internal: true
 
-  # Internal builtin restart used for normal restart flow
   - platform: restart
     id: builtin_restart
     internal: true
 
-# Single interval block — LED throttling loop (3s)
 interval:
   - interval: 3s
     then:
