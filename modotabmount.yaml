@@ -41,10 +41,6 @@ globals:
     type: std::string
     restore_value: no
     initial_value: "\"\""
-  - id: factory_reset_confirmed
-    type: bool
-    restore_value: no
-    initial_value: 'false'
   - id: show_status_message_msg
     type: std::string
     restore_value: no
@@ -53,6 +49,10 @@ globals:
     type: int
     restore_value: no
     initial_value: '30'
+  - id: factory_reset_window
+    type: bool
+    restore_value: no
+    initial_value: 'true'
 
 text_sensor:
   - platform: template
@@ -78,54 +78,51 @@ switch:
     name: "Tablet Charging"
     icon: "mdi:lightning-bolt-circle"
 
-  - platform: template
-    name: "Factory Reset"
-    icon: mdi:alert
-    turn_on_action:
+button:
+  # Main button for restart / factory reset (within 30s)
+  - platform: restart
+    name: "Restart Device"
+    id: restart_button
+    on_press:
       - if:
           condition:
-            lambda: 'return id(factory_reset_confirmed);'
+            lambda: 'return id(factory_reset_window);'
           then:
             - lambda: |-
-                id(show_status_message_msg) = "✅ Factory reset initiated — device will restart.";
+                id(show_status_message_msg) = "⚙️ Factory reset initiated (within 30s window)...";
                 id(show_status_message_duration) = 10;
             - script.execute: show_status_message
             - delay: 2s
             - button.press: reset_button
           else:
             - lambda: |-
-                id(show_status_message_msg) = "⚠️ Press again within 30s to confirm factory reset.";
-                id(show_status_message_duration) = 30;
+                id(show_status_message_msg) = "🔄 Restarting device...";
+                id(show_status_message_duration) = 10;
             - script.execute: show_status_message
-            - globals.set:
-                id: factory_reset_confirmed
-                value: 'true'
-            - delay: 30s
-            - globals.set:
-                id: factory_reset_confirmed
-                value: 'false'
+            - delay: 2s
+            - switch.turn_off: tablet_charging
+            - delay: 500ms
+            - button.press: builtin_restart
 
-button:
-  - platform: restart
-    name: "Restart Device"
-    id: restart_button
-    on_press:
-      - lambda: |-
-          id(show_status_message_msg) = "🔄 Restarting device...";
-          id(show_status_message_duration) = 10;
-      - script.execute: show_status_message
-      - delay: 2s
-      - switch.turn_off: tablet_charging
-      - delay: 500ms
-      - button.press: builtin_restart
-
+  # Internal factory reset button (not visible)
   - platform: factory_reset
-    name: "Restart with Factory Default Settings"
     id: reset_button
+    internal: true
 
+  # Builtin restart (hidden)
   - platform: restart
     id: builtin_restart
     internal: true
+
+# After boot, disable factory reset window after 30 seconds
+interval:
+  - interval: 30s
+    then:
+      - globals.set:
+          id: factory_reset_window
+          value: 'false'
+      - lambda: |-
+          ESP_LOGI("init", "Factory reset window closed.");
 
 light:
   - platform: esp32_rmt_led_strip
@@ -183,6 +180,7 @@ binary_sensor:
     lambda: |-
       return id(ina219_power).state < 7.5;
 
+# LED brightness throttling
 interval:
   - interval: 3s
     then:
