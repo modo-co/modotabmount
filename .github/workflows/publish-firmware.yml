@@ -8,26 +8,33 @@ permissions:
   contents: write
 
 jobs:
-  build-firmware:
-    name: Build Firmware
+  build-firmware-modotabmount:
+    name: Build Firmware (modotabmount)
     uses: esphome/workflows/.github/workflows/build.yml@2025.8.1
     with:
-      #### Modify below here to match your project ####
-      files: |
-        modotabmount.factory.yaml
-        modotabmount-bt.factory.yaml
+      files: modotabmount.factory.yaml
       esphome-version: 2025.8.0
       combined-name: modotabmount
-      #### Modify above here to match your project ####
+      release-summary: ${{ github.event.release.body }}
+      release-url: ${{ github.event.release.html_url }}
+      release-version: ${{ github.event.release.tag_name }}
 
+  build-firmware-modotabmount-bt:
+    name: Build Firmware (modotabmount-bt)
+    uses: esphome/workflows/.github/workflows/build.yml@2025.8.1
+    with:
+      files: modotabmount-bt.factory.yaml
+      esphome-version: 2025.8.0
+      combined-name: modotabmount-bt
       release-summary: ${{ github.event.release.body }}
       release-url: ${{ github.event.release.html_url }}
       release-version: ${{ github.event.release.tag_name }}
 
   upload-to-release:
     name: Upload to Release
-    uses: esphome/workflows/.github/workflows/upload-to-gh-release.yml@2025.8.1
     needs:
-      - build-firmware
+      - build-firmware-modotabmount
+      - build-firmware-modotabmount-bt
+    uses: esphome/workflows/.github/workflows/upload-to-gh-release.yml@2025.8.1
     with:
       version: ${{ github.event.release.tag_name }}
