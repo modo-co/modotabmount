@@ -136,10 +136,12 @@ sensor:
   - platform: debug
     free:
       name: "Free RAM"
-    fragment:
+    fragmentation:
       name: "Heap Fragmentation"
     block:
       name: "Largest Free Block"
+    loop_time:
+      name: "Main Loop Time"
 
 binary_sensor:
   - platform: template
