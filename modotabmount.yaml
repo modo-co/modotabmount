@@ -25,7 +25,9 @@ i2c:
   scl: 21
   scan: true
 
-# Keep brightness/effect memory for dimming logic
+debug:
+  update_interval: 10s
+
 globals:
   - id: previous_brightness
     type: float
@@ -52,7 +54,6 @@ switch:
     name: "Tablet Charging"
     icon: "mdi:lightning-bolt-circle"
 
-# ✅ Simple buttons (no complex double-press logic)
 button:
   - platform: restart
     name: "Restart Device"
@@ -80,7 +81,6 @@ light:
       - addressable_random_twinkle:
           name: Twinkle
 
-# ✅ Power-based LED dimming logic preserved
 interval:
   - interval: 3s
     then:
