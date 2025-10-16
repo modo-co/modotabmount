@@ -8,33 +8,46 @@ permissions:
   contents: write
 
 jobs:
-  build-firmware-modotabmount:
-    name: Build Firmware (modotabmount)
+  build-firmware:
+    name: Build Firmware
     uses: esphome/workflows/.github/workflows/build.yml@2025.8.1
     with:
-      files: modotabmount.factory.yaml
+      #### Modify below here to match your project ####
+      files: |
+        modotabmount.factory.yaml
+        modotabmount-bt.factory.yaml
       esphome-version: 2025.8.0
-      combined-name: modotabmount
+      combined-name: modotabmount  # Used for combined manifest/metadata grouping
+      #### Modify above here to match your project ####
+
       release-summary: ${{ github.event.release.body }}
       release-url: ${{ github.event.release.html_url }}
       release-version: ${{ github.event.release.tag_name }}
 
-  build-firmware-modotabmount-bt:
-    name: Build Firmware (modotabmount-bt)
-    uses: esphome/workflows/.github/workflows/build.yml@2025.8.1
-    with:
-      files: modotabmount-bt.factory.yaml
-      esphome-version: 2025.8.0
-      combined-name: modotabmount-bt
-      release-summary: ${{ github.event.release.body }}
-      release-url: ${{ github.event.release.html_url }}
-      release-version: ${{ github.event.release.tag_name }}
+  delete-existing-assets:
+    name: Delete Existing Release Assets
+    runs-on: ubuntu-latest
+    needs:
+      - build-firmware
+    steps:
+      - name: Delete existing release assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RELEASE_ID=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ github.event.release.tag_name }}" | jq -r .id)
+          ASSETS=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets" | jq -r '.[].id')
+          for ASSET_ID in $ASSETS; do
+            curl -s -X DELETE -H "Authorization: token $GITHUB_TOKEN" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/assets/$ASSET_ID"
+          done
 
   upload-to-release:
     name: Upload to Release
     needs:
-      - build-firmware-modotabmount
-      - build-firmware-modotabmount-bt
+      - build-firmware
+      - delete-existing-assets
     uses: esphome/workflows/.github/workflows/upload-to-gh-release.yml@2025.8.1
     with:
       version: ${{ github.event.release.tag_name }}
