@@ -1,6 +1,6 @@
 packages:
   # Include all of the core configuration
-  core: !include modotabmount-bt.yaml
+  core: !include modotabmount.yaml
 
 esphome:
   # This will allow for project identification,
@@ -14,6 +14,18 @@ esphome:
 # that are provided by this factory yaml file as the user does not need these once adopted.
 dashboard_import:
   package_import_url: github://modo-co/modotabmount/modotabmount.yaml@main
+
+# Include BLE tracker
+esp32_ble_tracker:
+  scan_parameters:
+    interval: 1100ms
+    window: 1100ms
+    active: true
+
+# Include BT Proxy
+bluetooth_proxy:
+  active: true
+  connection_slots: 3
 
 # Sets up Bluetooth LE (Only on ESP32) to allow the user
 # to provision wifi credentials to the device.
