@@ -227,6 +227,14 @@ sensor:
     name: "WiFi Signal"
     update_interval: 180s
 
+  - platform: debug
+    free:
+      name: "Free RAM"
+    fragment:
+      name: "Heap Fragmentation"
+    block:
+      name: "Largest Free Block"
+
 binary_sensor:
   - platform: template
     name: "Power Low Threshold"
