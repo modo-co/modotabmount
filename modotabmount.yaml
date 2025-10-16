@@ -133,15 +133,33 @@ sensor:
     name: "WiFi Signal"
     update_interval: 180s
 
-  - platform: debug
-    free:
-      name: "Free RAM"
-    fragmentation:
-      name: "Heap Fragmentation"
-    block:
-      name: "Largest Free Block"
-    loop_time:
-      name: "Main Loop Time"
+  - platform: template
+    name: "Free Heap"
+    lambda: |-
+      return (float) ESP.getFreeHeap();
+    update_interval: 10s
+    unit_of_measurement: "bytes"
+
+  - platform: template
+    name: "Largest Free Block"
+    lambda: |-
+      return (float) heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT);
+    update_interval: 10s
+    unit_of_measurement: "bytes"
+
+  - platform: template
+    name: "Main Loop Time (ms)"
+    lambda: |-
+      static uint32_t last_time = 0;
+      static float loop_ms = 0;
+      uint32_t now = millis();
+      if (last_time != 0) {
+        loop_ms = (now - last_time);
+      }
+      last_time = now;
+      return loop_ms;
+    update_interval: 1s
+    unit_of_measurement: "ms"
 
 binary_sensor:
   - platform: template
