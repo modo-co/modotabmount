@@ -3,38 +3,6 @@ esphome:
   friendly_name: Modo Tab Mount
   name_add_mac_suffix: true
 
-  # Handle factory reset logic
-  on_boot:
-    priority: 600
-    then:
-      # Clear status message on boot
-      - text_sensor.template.publish:
-          id: status_message
-          state: ""
-
-      # If restart was pressed before reboot, open 30s factory-reset window
-      - if:
-          condition:
-            lambda: 'return id(factory_reset_pending);'
-          then:
-            - globals.set:
-                id: factory_reset_window
-                value: 'true'
-            - lambda: |-
-                ESP_LOGI("init", "Factory-reset window open (30s). Press Restart again to confirm.");
-            - delay: 30s
-            - globals.set:
-                id: factory_reset_window
-                value: 'false'
-            - globals.set:
-                id: factory_reset_pending
-                value: 'false'
-            - lambda: |-
-                ESP_LOGI("init", "Factory-reset window closed.");
-          else:
-            - lambda: |-
-                ESP_LOGI("init", "Normal boot.");
-
 esp32:
   board: esp32-c3-devkitm-1
   framework:
@@ -57,6 +25,7 @@ i2c:
   scl: 21
   scan: true
 
+# Keep brightness/effect memory for dimming logic
 globals:
   - id: previous_brightness
     type: float
@@ -75,42 +44,6 @@ globals:
     restore_value: no
     initial_value: "\"\""
 
-  # Factory reset logic
-  - id: factory_reset_pending
-    type: bool
-    restore_value: yes
-    initial_value: 'false'
-  - id: factory_reset_window
-    type: bool
-    restore_value: no
-    initial_value: 'false'
-
-  # Status message handling
-  - id: show_status_message_msg
-    type: std::string
-    restore_value: no
-    initial_value: "\"\""
-  - id: show_status_message_duration
-    type: int
-    restore_value: no
-    initial_value: '30'
-
-text_sensor:
-  - platform: template
-    name: "Status Message"
-    id: status_message
-
-script:
-  - id: show_status_message
-    mode: queued
-    then:
-      - lambda: |-
-          id(status_message).publish_state(id(show_status_message_msg));
-      - delay: !lambda 'return id(show_status_message_duration) * 1000;'
-      - text_sensor.template.publish:
-          id: status_message
-          state: ""
-
 switch:
   - platform: gpio
     id: tablet_charging
@@ -119,42 +52,35 @@ switch:
     name: "Tablet Charging"
     icon: "mdi:lightning-bolt-circle"
 
+# ✅ Simple buttons (no complex double-press logic)
 button:
   - platform: restart
-    name: "Restart / Factory Reset"
-    id: restart_button
-    on_press:
-      - if:
-          condition:
-            lambda: 'return id(factory_reset_window);'
-          then:
-            - lambda: |-
-                id(show_status_message_msg) = "⚠️ Factory reset confirmed — restoring defaults...";
-                id(show_status_message_duration) = 10;
-            - script.execute: show_status_message
-            - delay: 2s
-            - button.press: reset_button
-          else:
-            - lambda: |-
-                id(show_status_message_msg) = "🔄 Restarting device... (press again soon to factory reset)";
-                id(show_status_message_duration) = 10;
-            - script.execute: show_status_message
-            - globals.set:
-                id: factory_reset_pending
-                value: 'true'
-            - delay: 2s
-            - switch.turn_off: tablet_charging
-            - delay: 500ms
-            - button.press: builtin_restart
+    name: "Restart Device"
 
   - platform: factory_reset
-    id: reset_button
-    internal: true
+    name: "Factory Reset Device"
 
-  - platform: restart
-    id: builtin_restart
-    internal: true
+light:
+  - platform: esp32_rmt_led_strip
+    id: addressable_led
+    name: "LED"
+    chipset: WS2812
+    pin: GPIO5
+    num_leds: 64
+    rgb_order: GRB
+    effects:
+      - addressable_rainbow:
+          name: Rainbow
+      - addressable_color_wipe:
+          name: Color Wipe
+      - random:
+          name: Random
+      - pulse:
+          name: Pulse
+      - addressable_random_twinkle:
+          name: Twinkle
 
+# ✅ Power-based LED dimming logic preserved
 interval:
   - interval: 3s
     then:
@@ -178,26 +104,6 @@ interval:
               call.set_effect(id(previous_effect).c_str());
             call.perform();
           }
-
-light:
-  - platform: esp32_rmt_led_strip
-    id: addressable_led
-    name: "LED"
-    chipset: WS2812
-    pin: GPIO5
-    num_leds: 64
-    rgb_order: GRB
-    effects:
-      - addressable_rainbow:
-          name: Rainbow
-      - addressable_color_wipe:
-          name: Color Wipe
-      - random:
-          name: Random
-      - pulse:
-          name: Pulse
-      - addressable_random_twinkle:
-          name: Twinkle
 
 sensor:
   - platform: ina219
