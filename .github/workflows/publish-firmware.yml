@@ -9,25 +9,102 @@ permissions:
 
 jobs:
   build-firmware:
-    name: Build Firmware
+    name: Build Both Firmware Variants
     uses: esphome/workflows/.github/workflows/build.yml@2025.8.1
     with:
-      #### Modify below here to match your project ####
       files: |
         modotabmount.factory.yaml
         modotabmount-bt.factory.yaml
       esphome-version: 2025.8.0
       combined-name: modotabmount
-      #### Modify above here to match your project ####
-
       release-summary: ${{ github.event.release.body }}
       release-url: ${{ github.event.release.html_url }}
       release-version: ${{ github.event.release.tag_name }}
 
+  package-and-upload:
+    name: Create ZIP & Upload to Release
+    runs-on: ubuntu-latest
+    needs: build-firmware
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Download firmware artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: firmware
+          path: release
+
+      - name: Create combined manifest.json
+        run: |
+          cd release
+          cat <<EOF > manifest.json
+          {
+            "name": "modoco.modotabmount",
+            "version": "${{ github.ref_name }}",
+            "home_assistant_domain": "esphome",
+            "new_install_prompt_erase": false,
+            "builds": [
+              {
+                "chipFamily": "ESP32-C3",
+                "ota": {
+                  "path": "modotabmount-esp32c3.ota.bin",
+                  "md5": "$(md5sum modotabmount-esp32c3.ota.bin | cut -d ' ' -f1)",
+                  "release_url": "${{ github.event.release.html_url }}"
+                },
+                "parts": [
+                  { "path": "modotabmount-esp32c3.factory.bin", "offset": 0 }
+                ]
+              },
+              {
+                "chipFamily": "ESP32-C3",
+                "ota": {
+                  "path": "modotabmount-bt-esp32c3.ota.bin",
+                  "md5": "$(md5sum modotabmount-bt-esp32c3.ota.bin | cut -d ' ' -f1)",
+                  "release_url": "${{ github.event.release.html_url }}"
+                },
+                "parts": [
+                  { "path": "modotabmount-bt-esp32c3.factory.bin", "offset": 0 }
+                ]
+              }
+            ]
+          }
+          EOF
+          cat manifest.json
+
+      - name: Create README.txt
+        run: |
+          cd release
+          cat <<EOF > README.txt
+          Modo Tab Mount Firmware Release - version ${{ github.ref_name }}
+
+          Included files:
+          - modotabmount-esp32c3.factory.bin      : Standard factory firmware
+          - modotabmount-esp32c3.ota.bin          : OTA binary for standard firmware
+          - modotabmount-bt-esp32c3.factory.bin   : Bluetooth Proxy factory firmware
+          - modotabmount-bt-esp32c3.ota.bin       : OTA binary for Bluetooth Proxy
+          - manifest.json                          : Combined manifest for OTA updates
+          - README.txt                             : This file
+          EOF
+          cat README.txt
+
+      - name: Create ZIP package
+        run: |
+          cd release
+          zip -r modotabmount-${{ github.ref_name }}-all.zip *
+
+      - name: Upload ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          # Include run_id to make name unique and avoid 409 errors
+          name: release-zip-${{ github.run_id }}-${{ github.ref_name }}
+          path: release/modotabmount-${{ github.ref_name }}-all.zip
+
   upload-to-release:
-    name: Upload to Release
+    name: Upload all firmware to GitHub Release
     uses: esphome/workflows/.github/workflows/upload-to-gh-release.yml@2025.8.1
     needs:
       - build-firmware
+      - package-and-upload
     with:
       version: ${{ github.event.release.tag_name }}
