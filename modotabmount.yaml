@@ -3,21 +3,37 @@ esphome:
   friendly_name: Modo Tab Mount
   name_add_mac_suffix: true
 
-  # Open factory reset window on startup
+  # Handle factory reset logic
   on_boot:
     priority: 600
     then:
-      - globals.set:
-          id: factory_reset_window
-          value: 'true'
-      - lambda: |-
-          ESP_LOGI("init", "Factory reset window opened for 30s.");
-      - delay: 30s
-      - globals.set:
-          id: factory_reset_window
-          value: 'false'
-      - lambda: |-
-          ESP_LOGI("init", "Factory reset window closed.");
+      # Clear status message on boot
+      - text_sensor.template.publish:
+          id: status_message
+          state: ""
+
+      # If restart was pressed before reboot, open 30s factory-reset window
+      - if:
+          condition:
+            lambda: 'return id(factory_reset_pending);'
+          then:
+            - globals.set:
+                id: factory_reset_window
+                value: 'true'
+            - lambda: |-
+                ESP_LOGI("init", "Factory-reset window open (30s). Press Restart again to confirm.");
+            - delay: 30s
+            - globals.set:
+                id: factory_reset_window
+                value: 'false'
+            - globals.set:
+                id: factory_reset_pending
+                value: 'false'
+            - lambda: |-
+                ESP_LOGI("init", "Factory-reset window closed.");
+          else:
+            - lambda: |-
+                ESP_LOGI("init", "Normal boot.");
 
 esp32:
   board: esp32-c3-devkitm-1
@@ -35,9 +51,6 @@ wifi:
   ap:
 
 captive_portal:
-
-web_server:
-  port: 80
 
 i2c:
   sda: 7
@@ -61,10 +74,18 @@ globals:
     type: std::string
     restore_value: no
     initial_value: "\"\""
+
+  # Factory reset logic
+  - id: factory_reset_pending
+    type: bool
+    restore_value: yes
+    initial_value: 'false'
   - id: factory_reset_window
     type: bool
     restore_value: no
     initial_value: 'false'
+
+  # Status message handling
   - id: show_status_message_msg
     type: std::string
     restore_value: no
@@ -100,7 +121,7 @@ switch:
 
 button:
   - platform: restart
-    name: "Restart Device"
+    name: "Restart / Factory Reset"
     id: restart_button
     on_press:
       - if:
@@ -108,16 +129,19 @@ button:
             lambda: 'return id(factory_reset_window);'
           then:
             - lambda: |-
-                id(show_status_message_msg) = "⚠️ Factory reset confirmed — resetting to defaults...";
+                id(show_status_message_msg) = "⚠️ Factory reset confirmed — restoring defaults...";
                 id(show_status_message_duration) = 10;
             - script.execute: show_status_message
             - delay: 2s
             - button.press: reset_button
           else:
             - lambda: |-
-                id(show_status_message_msg) = "🔄 Restarting device...";
+                id(show_status_message_msg) = "🔄 Restarting device... (press again soon to factory reset)";
                 id(show_status_message_duration) = 10;
             - script.execute: show_status_message
+            - globals.set:
+                id: factory_reset_pending
+                value: 'true'
             - delay: 2s
             - switch.turn_off: tablet_charging
             - delay: 500ms
