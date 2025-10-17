@@ -25,8 +25,13 @@ web_server:
   version: 3  # IDF-based async server, lighter than v2
   log: false
 
-# Bluetooth proxy (now feasible with IDF-based builds)
+# Bluetooth proxy
 esp32_ble_tracker:
+  scan_parameters:
+    interval: 1100ms
+    window: 1100ms
+    active: true
+
 bluetooth_proxy:
   active: true
 
@@ -34,10 +39,6 @@ i2c:
   sda: 7
   scl: 21
   scan: true
-
-# Optional: Disable debug component (saves ~15–20 KB RAM)
-# debug:
-#   update_interval: 10s
 
 globals:
   - id: previous_brightness
