@@ -27,7 +27,6 @@ jobs:
     name: Upload to Release
     needs:
       - build-firmware
-      - delete-existing-assets
     uses: esphome/workflows/.github/workflows/upload-to-gh-release.yml@2025.8.1
     with:
       version: ${{ github.event.release.tag_name }}
