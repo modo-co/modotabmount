@@ -2,13 +2,17 @@ esphome:
   name: modotabmount
   friendly_name: Modo Tab Mount
   name_add_mac_suffix: true
+  min_version: 2025.5.0   # ensures new IDF+Arduino build system
 
 esp32:
   board: esp32-c3-devkitm-1
   framework:
     type: esp-idf
+  variant: esp32c3
 
+# Lighter logging to save RAM
 logger:
+  level: WARN
 
 api:
 
@@ -16,17 +20,34 @@ ota:
   - platform: esphome
 
 wifi:
-  ap:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:  # fallback AP
+    ssid: "ModoTabMount Fallback"
+    password: "12345678"
 
+# Keep, but disable if space gets tight
 captive_portal:
+
+# Add minimal web UI (lightweight HTTP server)
+web_server:
+  port: 80
+  version: 3  # IDF-based async server, lighter than v2
+  log: false
+
+# Bluetooth proxy (now feasible with IDF-based builds)
+esp32_ble_tracker:
+bluetooth_proxy:
+  active: true
 
 i2c:
   sda: 7
   scl: 21
   scan: true
 
-debug:
-  update_interval: 10s
+# Optional: Disable debug component (saves ~15–20 KB RAM)
+# debug:
+#   update_interval: 10s
 
 globals:
   - id: previous_brightness
@@ -69,6 +90,8 @@ light:
     pin: GPIO5
     num_leds: 64
     rgb_order: GRB
+    # Use RMT channel 0 for stability
+    rmt_channel: 0
     effects:
       - addressable_rainbow:
           name: Rainbow
