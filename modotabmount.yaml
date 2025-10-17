@@ -16,16 +16,6 @@ logger:
 
 api:
 
-ota:
-  - platform: esphome
-
-wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
-  ap:  # fallback AP
-    ssid: "ModoTabMount Fallback"
-    password: "12345678"
-
 # Keep, but disable if space gets tight
 captive_portal:
 
