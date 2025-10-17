@@ -22,26 +22,7 @@ jobs:
       release-summary: ${{ github.event.release.body }}
       release-url: ${{ github.event.release.html_url }}
       release-version: ${{ github.event.release.tag_name }}
-
-  delete-existing-assets:
-    name: Delete Existing Release Assets
-    runs-on: ubuntu-latest
-    needs:
-      - build-firmware
-    steps:
-      - name: Delete existing release assets
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          RELEASE_ID=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-            "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ github.event.release.tag_name }}" | jq -r .id)
-          ASSETS=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-            "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets" | jq -r '.[].id')
-          for ASSET_ID in $ASSETS; do
-            curl -s -X DELETE -H "Authorization: token $GITHUB_TOKEN" \
-              "https://api.github.com/repos/${{ github.repository }}/releases/assets/$ASSET_ID"
-          done
-
+      
   upload-to-release:
     name: Upload to Release
     needs:
