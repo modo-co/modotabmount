@@ -14,7 +14,13 @@ esp32:
 logger:
   level: WARN
 
+network:
+  enable_ipv6: false  # optional, defaults to false
+
 api:
+
+wifi:
+  ap:
 
 # Keep, but disable if space gets tight
 captive_portal:
