@@ -25,22 +25,6 @@ esp32_improv:
 # Handy if your device has a usb port for the user to add credentials when they first get it.
 improv_serial:
 
-# Include Web Server in Default firmware
-web_server:
-  port: 80
-
-# Include BLE tracker
-esp32_ble_tracker:
-  scan_parameters:
-    interval: 1100ms
-    window: 1100ms
-    active: true
-
-# Include BT Proxy
-bluetooth_proxy:
-  active: true
-  connection_slots: 3
-
 # Used to pull OTA updates
 http_request:
   buffer_size_rx: 2048
