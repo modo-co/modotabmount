@@ -87,8 +87,6 @@ light:
     pin: GPIO5
     num_leds: 64
     rgb_order: GRB
-    # Use RMT channel 0 for stability
-    rmt_channel: 0
     effects:
       - addressable_rainbow:
           name: Rainbow
