@@ -2,7 +2,6 @@ esphome:
   name: modotabmount
   friendly_name: Modo Tab Mount
   name_add_mac_suffix: true
-  min_version: 2025.5.0   # ensures new IDF+Arduino build system
 
 esp32:
   board: esp32-c3-devkitm-1
