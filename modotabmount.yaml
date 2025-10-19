@@ -142,6 +142,7 @@ sensor:
 
   - platform: internal_temperature
     name: "ESP32 Internal Temp"
+    icon: "mdi:thermometer"
 
   - platform: uptime
     name: "Uptime"
@@ -149,7 +150,7 @@ sensor:
 
   - platform: wifi_signal
     name: "WiFi Signal"
-    update_interval: 180s
+    update_interval: 60s
 
   - platform: debug
     free:
@@ -158,8 +159,6 @@ sensor:
       name: "Heap Max Block"
     loop_time:
       name: "Loop Time"
-    cpu_frequency:
-      name: "CPU Frequency"
 
 binary_sensor:
   - platform: template
