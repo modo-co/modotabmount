@@ -22,21 +22,12 @@ api:
 wifi:
   ap:
 
-# Keep, but disable if space gets tight
 captive_portal:
 
-# Add minimal web UI (lightweight HTTP server)
 web_server:
   port: 80
   version: 3  # IDF-based async server, lighter than v2
   log: false
-
-# Bluetooth 
-#esp32_ble_tracker:
-#  scan_parameters:
-#    interval: 1100ms
-#    window: 1100ms
-#    active: true
 
 bluetooth_proxy:
   active: true
@@ -82,6 +73,7 @@ button:
 light:
   - platform: esp32_rmt_led_strip
     id: addressable_led
+    icon: "mdi:television-ambient-light"
     name: "LED"
     chipset: WS2812
     pin: GPIO5
@@ -129,11 +121,14 @@ sensor:
     shunt_resistance: 0.0767 ohm
     current:
       name: "Current"
+      icon: "mdi:current-ac"
     power:
       name: "Power"
       id: ina219_power
+      icon: "mdi:flash"
     bus_voltage:
       name: "Bus Voltage"
+      icon: "mdi:sine-wave"
     shunt_voltage:
       name: "Shunt Voltage"
     max_voltage: 5.6V
@@ -147,10 +142,12 @@ sensor:
   - platform: uptime
     name: "Uptime"
     type: seconds
+    icon: "mdi:timer-outline"
 
   - platform: wifi_signal
     name: "WiFi Signal"
     update_interval: 60s
+    icon: "mdi:wifi"
 
   - platform: debug
     free:
