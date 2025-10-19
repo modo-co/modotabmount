@@ -15,7 +15,7 @@ jobs:
       #### Modify below here to match your project ####
       files: |
         modotabmount.factory.yaml
-      esphome-version: 2025.10.0
+      esphome-version: 2025.10.1
       combined-name: modotabmount  # Used for combined manifest/metadata grouping
       #### Modify above here to match your project ####
 
