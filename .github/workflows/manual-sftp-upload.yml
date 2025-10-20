@@ -21,65 +21,80 @@ jobs:
       SFTP_PASS: ${{ secrets.SFTP_PASS }}
       RELEASE_REPO: modo-co/modotabmount
     steps:
+      - name: Prepare release variables
+        run: |
+          echo "RELEASE_VERSION=${{ inputs.release_version }}" >> $GITHUB_ENV
+          echo "RELEASE_BASE_URL=https://modotabmount.modoco.io/firmware/${{ inputs.release_version }}/" >> $GITHUB_ENV
+
       - name: Download all release assets
         run: |
-          RELEASE_VERSION="${{ inputs.release_version }}"
-          curl -L -o modotabmount-esp32c3.elf "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.elf"
-          curl -L -o modotabmount-esp32c3.elf.md5 "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.elf.md5"
-          curl -L -o modotabmount-esp32c3.elf.sha256 "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.elf.sha256"
-          curl -L -o modotabmount-esp32c3.factory.bin "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.factory.bin"
-          curl -L -o modotabmount-esp32c3.factory.bin.md5 "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.factory.bin.md5"
-          curl -L -o modotabmount-esp32c3.factory.bin.sha256 "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.factory.bin.sha256"
-          curl -L -o modotabmount-esp32c3.ota.bin "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.ota.bin"
-          curl -L -o modotabmount-esp32c3.ota.bin.md5 "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.ota.bin.md5"
-          curl -L -o modotabmount-esp32c3.ota.bin.sha256 "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.ota.bin.sha256"
-          curl -L -o modotabmount.manifest.json "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount.manifest.json"
+          # variables available via $RELEASE_VERSION and $RELEASE_REPO
+          curl -fL -o modotabmount-esp32c3.elf "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.elf" || true
+          curl -fL -o modotabmount-esp32c3.elf.md5 "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.elf.md5" || true
+          curl -fL -o modotabmount-esp32c3.elf.sha256 "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.elf.sha256" || true
+          curl -fL -o modotabmount-esp32c3.factory.bin "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.factory.bin" || true
+          curl -fL -o modotabmount-esp32c3.factory.bin.md5 "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.factory.bin.md5" || true
+          curl -fL -o modotabmount-esp32c3.factory.bin.sha256 "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.factory.bin.sha256" || true
+          curl -fL -o modotabmount-esp32c3.ota.bin "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.ota.bin" || true
+          curl -fL -o modotabmount-esp32c3.ota.bin.md5 "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.ota.bin.md5" || true
+          curl -fL -o modotabmount-esp32c3.ota.bin.sha256 "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.ota.bin.sha256" || true
+          curl -fL -o modotabmount.manifest.json "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount.manifest.json" || true
+
       - name: Install jq and lftp
         run: sudo apt-get update && sudo apt-get install -y jq lftp
+
       - name: Update manifest paths for your site
         run: |
-          RELEASE_VERSION="${{ inputs.release_version }}"
-          RELEASE_BASE_URL="https://modotabmount.modoco.io/firmware/${RELEASE_VERSION}/"
+          # update manifest to point ota/parts paths at your site; keep release_url unchanged
           jq --arg url "${RELEASE_BASE_URL}" '
-            .builds[].ota.path = ($url + "modotabmount-esp32c3.ota.bin")
-            | .builds[].parts[0].path = ($url + "modotabmount-esp32c3.factory.bin")
-          ' modotabmount.manifest.json > modotabmount.manifest.json.tmp
-          mv modotabmount.manifest.json.tmp modotabmount.manifest.json
+            if (.builds | length) > 0 then
+              (.builds[] | select(.ota)?).ota.path = ($url + "modotabmount-esp32c3.ota.bin") |
+              (.builds[] | select(.parts)?).parts[0].path = ($url + "modotabmount-esp32c3.factory.bin")
+            else
+              .
+            end
+          ' modotabmount.manifest.json > modotabmount.manifest.json.tmp && mv modotabmount.manifest.json.tmp modotabmount.manifest.json || true
+          echo "Updated manifest content:"
+          cat modotabmount.manifest.json || true
+
       - name: Debug: List downloaded files
-        run: ls -lh
+        run: ls -lah
+
       - name: Upload all assets via SFTP (versioned, debug enabled)
         run: |
-          RELEASE_VERSION="${{ inputs.release_version }}"
-          lftp -u "$SFTP_USER","$SFTP_PASS" sftp://$SFTP_HOST <<EOF
+          # use lftp with verbose settings to show connection and transfer logs
+          lftp -u "$SFTP_USER","$SFTP_PASS" sftp://$SFTP_HOST <<'LFTPEOF'
           set ftp:trace 3
           set sftp:debug 5
           set xfer:log 1
           set xfer:log-file /dev/stdout
           cd public_html/modotabmount/firmware
-          mkdir $RELEASE_VERSION
-          cd $RELEASE_VERSION
-          put modotabmount-esp32c3.elf
-          put modotabmount-esp32c3.elf.md5
-          put modotabmount-esp32c3.elf.sha256
-          put modotabmount-esp32c3.factory.bin
-          put modotabmount-esp32c3.factory.bin.md5
-          put modotabmount-esp32c3.factory.bin.sha256
-          put modotabmount-esp32c3.ota.bin
-          put modotabmount-esp32c3.ota.bin.md5
-          put modotabmount-esp32c3.ota.bin.sha256
-          put modotabmount.manifest.json
+          mkdir ${RELEASE_VERSION} || true
+          cd ${RELEASE_VERSION}
+          # upload if file exists locally
+          if [ -f "modotabmount-esp32c3.elf" ]; then put modotabmount-esp32c3.elf; fi
+          if [ -f "modotabmount-esp32c3.elf.md5" ]; then put modotabmount-esp32c3.elf.md5; fi
+          if [ -f "modotabmount-esp32c3.elf.sha256" ]; then put modotabmount-esp32c3.elf.sha256; fi
+          if [ -f "modotabmount-esp32c3.factory.bin" ]; then put modotabmount-esp32c3.factory.bin; fi
+          if [ -f "modotabmount-esp32c3.factory.bin.md5" ]; then put modotabmount-esp32c3.factory.bin.md5; fi
+          if [ -f "modotabmount-esp32c3.factory.bin.sha256" ]; then put modotabmount-esp32c3.factory.bin.sha256; fi
+          if [ -f "modotabmount-esp32c3.ota.bin" ]; then put modotabmount-esp32c3.ota.bin; fi
+          if [ -f "modotabmount-esp32c3.ota.bin.md5" ]; then put modotabmount-esp32c3.ota.bin.md5; fi
+          if [ -f "modotabmount-esp32c3.ota.bin.sha256" ]; then put modotabmount-esp32c3.ota.bin.sha256; fi
+          if [ -f "modotabmount.manifest.json" ]; then put modotabmount.manifest.json; fi
           bye
-          EOF
+          LFTPEOF
+
       - name: Upload manifest as "latest" (debug enabled)
         run: |
-          lftp -u "$SFTP_USER","$SFTP_PASS" sftp://$SFTP_HOST <<EOF
+          lftp -u "$SFTP_USER","$SFTP_PASS" sftp://$SFTP_HOST <<'LFTPEOF'
           set ftp:trace 3
           set sftp:debug 5
           set xfer:log 1
           set xfer:log-file /dev/stdout
           cd public_html/modotabmount/firmware
-          mkdir latest
+          mkdir latest || true
           cd latest
           put -O . modotabmount.manifest.json
           bye
-          EOF
+          LFTPEOF
