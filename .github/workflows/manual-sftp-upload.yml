@@ -70,15 +70,13 @@ jobs:
         run: |
           CMDFILE=./lftp_cmds.txt
           # create command file with expanded RELEASE_VERSION
-          cat > $CMDFILE <<LFTP_CMDS
-set ftp:trace 3
-set sftp:debug 5
-set xfer:log 1
-set xfer:log-file /dev/stdout
-cd public_html/modotabmount/firmware
-mkdir ${RELEASE_VERSION} || true
-cd ${RELEASE_VERSION}
-LFTP_CMDS
+          echo "set ftp:trace 3" > $CMDFILE
+          echo "set sftp:debug 5" >> $CMDFILE
+          echo "set xfer:log 1" >> $CMDFILE
+          echo "set xfer:log-file /dev/stdout" >> $CMDFILE
+          echo "cd public_html/modotabmount/firmware" >> $CMDFILE
+          echo "mkdir ${RELEASE_VERSION} || true" >> $CMDFILE
+          echo "cd ${RELEASE_VERSION}" >> $CMDFILE
 
           for f in modotabmount-esp32c3.elf \
                    modotabmount-esp32c3.elf.md5 \
@@ -109,22 +107,18 @@ LFTP_CMDS
       - name: Upload manifest to latest (debug enabled)
         run: |
           CMDFILE=./lftp_latest.txt
-          cat > $CMDFILE <<LFTP_CMDS
-set ftp:trace 3
-set sftp:debug 5
-set xfer:log 1
-set xfer:log-file /dev/stdout
-cd public_html/modotabmount/firmware
-mkdir latest || true
-cd latest
-LFTP_CMDS
-
+          echo "set ftp:trace 3" > $CMDFILE
+          echo "set sftp:debug 5" >> $CMDFILE
+          echo "set xfer:log 1" >> $CMDFILE
+          echo "set xfer:log-file /dev/stdout" >> $CMDFILE
+          echo "cd public_html/modotabmount/firmware" >> $CMDFILE
+          echo "mkdir latest || true" >> $CMDFILE
+          echo "cd latest" >> $CMDFILE
           if [ -f modotabmount.manifest.json ]; then
             echo "put -O . modotabmount.manifest.json" >> $CMDFILE
           else
             echo "# manifest not present, skipping put" >> $CMDFILE
           fi
-
           echo "bye" >> $CMDFILE
           sed -n '1,200p' $CMDFILE
           lftp -u "$SFTP_USER","$SFTP_PASS" sftp://$SFTP_HOST -f $CMDFILE
