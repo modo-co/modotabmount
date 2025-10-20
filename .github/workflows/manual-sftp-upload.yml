@@ -24,16 +24,16 @@ jobs:
       - name: Download all release assets
         run: |
           RELEASE_VERSION="${{ inputs.release_version }}"
-          curl -L -o modotabmount-esp32c3.elf https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.elf
-          curl -L -o modotabmount-esp32c3.elf.md5 https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.elf.md5
-          curl -L -o modotabmount-esp32c3.elf.sha256 https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.elf.sha256
-          curl -L -o modotabmount-esp32c3.factory.bin https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.factory.bin
-          curl -L -o modotabmount-esp32c3.factory.bin.md5 https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.factory.bin.md5
-          curl -L -o modotabmount-esp32c3.factory.bin.sha256 https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.factory.bin.sha256
-          curl -L -o modotabmount-esp32c3.ota.bin https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.ota.bin
-          curl -L -o modotabmount-esp32c3.ota.bin.md5 https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.ota.bin.md5
-          curl -L -o modotabmount-esp32c3.ota.bin.sha256 https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.ota.bin.sha256
-          curl -L -o modotabmount.manifest.json https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount.manifest.json
+          curl -L -o modotabmount-esp32c3.elf "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.elf"
+          curl -L -o modotabmount-esp32c3.elf.md5 "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.elf.md5"
+          curl -L -o modotabmount-esp32c3.elf.sha256 "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.elf.sha256"
+          curl -L -o modotabmount-esp32c3.factory.bin "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.factory.bin"
+          curl -L -o modotabmount-esp32c3.factory.bin.md5 "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.factory.bin.md5"
+          curl -L -o modotabmount-esp32c3.factory.bin.sha256 "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.factory.bin.sha256"
+          curl -L -o modotabmount-esp32c3.ota.bin "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.ota.bin"
+          curl -L -o modotabmount-esp32c3.ota.bin.md5 "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.ota.bin.md5"
+          curl -L -o modotabmount-esp32c3.ota.bin.sha256 "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.ota.bin.sha256"
+          curl -L -o modotabmount.manifest.json "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount.manifest.json"
       - name: Install jq and lftp
         run: sudo apt-get update && sudo apt-get install -y jq lftp
       - name: Update manifest paths for your site
