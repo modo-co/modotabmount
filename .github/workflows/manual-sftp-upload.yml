@@ -19,6 +19,7 @@ jobs:
       SFTP_HOST: ${{ secrets.SFTP_HOST }}
       SFTP_USER: ${{ secrets.SFTP_USER }}
       SFTP_PASS: ${{ secrets.SFTP_PASS }}
+
     steps:
       - name: Prepare release variables
         run: |
@@ -76,28 +77,28 @@ jobs:
       - name: Attempt SFTP upload of small file (verbose)
         run: |
           set -x
+
           if [ -z "$SFTP_HOST" ] || [ -z "$SFTP_USER" ] || [ -z "$SFTP_PASS" ]; then
             echo "One or more SFTP secrets are empty!"
             exit 2
           fi
 
           CMDFILE=./lftp_test_cmds.txt
-          cat > "$CMDFILE" <<LFTPC
-set ftp:trace 3
-set sftp:debug 5
-set xfer:log 1
-set xfer:log-file /dev/stdout
-cd public_html/modotabmount/firmware || true
-mkdir diagnostic_test || true
-cd diagnostic_test || true
-put small-test-file.txt
-bye
-LFTPC
+          printf "%s\n" \
+            "set ftp:trace 3" \
+            "set sftp:debug 5" \
+            "set xfer:log 1" \
+            "set xfer:log-file /dev/stdout" \
+            "cd public_html/modotabmount/firmware || true" \
+            "mkdir diagnostic_test || true" \
+            "cd diagnostic_test || true" \
+            "put small-test-file.txt" \
+            "bye" > "$CMDFILE"
 
           echo "----- lftp command file -----"
-          sed -n '1,200p' $CMDFILE
+          cat "$CMDFILE"
           echo "Running lftp..."
-          lftp -u "$SFTP_USER","$SFTP_PASS" sftp://$SFTP_HOST -f $CMDFILE
+          lftp -u "$SFTP_USER","$SFTP_PASS" sftp://$SFTP_HOST -f "$CMDFILE" || echo "lftp exited with status $?"
 
       - name: Final debug echo
         run: |
