@@ -25,6 +25,7 @@ jobs:
           echo "RELEASE_VERSION=${{ inputs.release_version }}" >> $GITHUB_ENV
           echo "RELEASE_BASE_URL=https://modotabmount.modoco.io/firmware/${{ inputs.release_version }}/" >> $GITHUB_ENV
           echo "WROTE to GITHUB_ENV"
+
       - name: Show runner and shell info
         run: |
           echo "===== TIMESTAMP ====="
@@ -42,12 +43,14 @@ jobs:
           else
             echo "No GITHUB_ENV file found"
           fi
+
       - name: Show filesystem root & workspace
         run: |
           echo "----- / -----"
           ls -lah /
           echo "----- workspace -----"
           ls -lah $GITHUB_WORKSPACE || true
+
       - name: Install minimal tools with verbose output
         run: |
           set -x
@@ -55,6 +58,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends lftp jq openssh-client
           lftp --version || true
           ssh -V || true
+
       - name: Debug: list files in workspace (explicit)
         run: |
           set -x
@@ -62,37 +66,39 @@ jobs:
           ls -lah
           echo "Printing free/df/output:"
           df -h .
+
       - name: Create small test file
         run: |
           echo "diagnostic test" > small-test-file.txt
           echo "file size:"
           ls -lh small-test-file.txt
+
       - name: Attempt SFTP upload of small file (verbose)
         run: |
           set -x
-          # show secrets were passed (masked in logs) by printing if non-empty
           if [ -z "$SFTP_HOST" ] || [ -z "$SFTP_USER" ] || [ -z "$SFTP_PASS" ]; then
             echo "One or more SFTP secrets are empty!"
             exit 2
           fi
-          # Try a simple sftp put using lftp with debug flags
+
           CMDFILE=./lftp_test_cmds.txt
-          cat > "$CMDFILE" <<'LFTPC'
+          cat > "$CMDFILE" <<LFTPC
 set ftp:trace 3
 set sftp:debug 5
 set xfer:log 1
 set xfer:log-file /dev/stdout
-# attempt to change to target dir; adjust if your home is root at /home/...
 cd public_html/modotabmount/firmware || true
 mkdir diagnostic_test || true
 cd diagnostic_test || true
 put small-test-file.txt
 bye
 LFTPC
+
           echo "----- lftp command file -----"
           sed -n '1,200p' $CMDFILE
           echo "Running lftp..."
           lftp -u "$SFTP_USER","$SFTP_PASS" sftp://$SFTP_HOST -f $CMDFILE
+
       - name: Final debug echo
         run: |
           echo "Diagnostics finished"
