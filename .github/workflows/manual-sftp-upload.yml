@@ -1,105 +1,94 @@
-name: Manual SFTP Diagnostics
+name: Upload Release Assets to FTP
 
 on:
   workflow_dispatch:
     inputs:
       release_version:
-        description: 'Release tag (e.g., 1.1.0)'
+        description: 'Release tag (e.g., 1.9.0)'
         required: true
-        default: 'diagnostic'
 
 permissions:
   contents: read
 
 jobs:
-  diagnostics:
+  upload:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
     env:
       SFTP_HOST: ${{ secrets.SFTP_HOST }}
       SFTP_USER: ${{ secrets.SFTP_USER }}
       SFTP_PASS: ${{ secrets.SFTP_PASS }}
 
     steps:
-      - name: Prepare release variables
+      - name: Install dependencies
         run: |
-          echo "RELEASE_VERSION=${{ inputs.release_version }}" >> $GITHUB_ENV
-          echo "RELEASE_BASE_URL=https://modotabmount.modoco.io/firmware/${{ inputs.release_version }}/" >> $GITHUB_ENV
-          echo "WROTE to GITHUB_ENV"
-
-      - name: Show runner and shell info
-        run: |
-          echo "===== TIMESTAMP ====="
-          date -u
-          echo "===== SHELL ====="
-          echo "$SHELL"
-          echo "===== WHOAMI & PWD ====="
-          whoami
-          pwd
-          echo "===== ENV: ACTIONS_RUNNER_DEBUG (if present) ====="
-          env | sed -n '1,200p' | grep -E 'GITHUB|RELEASE|SFTP|HOME' || true
-          echo "===== GITHUB_ENV contents ====="
-          if [ -f "$GITHUB_ENV" ]; then
-            sed -n '1,200p' "$GITHUB_ENV" || true
-          else
-            echo "No GITHUB_ENV file found"
-          fi
-
-      - name: Show filesystem root & workspace
-        run: |
-          echo "----- / -----"
-          ls -lah /
-          echo "----- workspace -----"
-          ls -lah $GITHUB_WORKSPACE || true
-
-      - name: Install minimal tools with verbose output
-        run: |
-          set -x
           sudo apt-get update -y
-          sudo apt-get install -y --no-install-recommends lftp jq openssh-client
-          lftp --version || true
-          ssh -V || true
+          sudo apt-get install -y --no-install-recommends jq lftp curl
 
-      - name: Debug: list files in workspace (explicit)
+      - name: Download all release assets
         run: |
-          set -x
-          echo "Printing simple ls -lah:"
-          ls -lah
-          echo "Printing free/df/output:"
-          df -h .
+          set -eux
+          mkdir -p release_assets
+          release_id=$(curl -s "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ inputs.release_version }}" | jq -r '.id')
+          echo "Release ID: $release_id"
 
-      - name: Create small test file
+          curl -s "https://api.github.com/repos/${{ github.repository }}/releases/${release_id}" \
+            | jq -r '.assets[].browser_download_url' \
+            | while read url; do
+                echo "Downloading $url"
+                curl -L -O "$url"
+              done
+
+          mv ./*.bin ./*.json ./release_assets/ 2>/dev/null || true
+          ls -lah release_assets
+
+      - name: Upload release assets to versioned directory
         run: |
-          echo "diagnostic test" > small-test-file.txt
-          echo "file size:"
-          ls -lh small-test-file.txt
+          set -eux
+          CMDFILE=./lftp_upload.txt
+          printf "%s\n" \
+            "set sftp:auto-confirm yes" \
+            "cd public_html/modotabmount/firmware" \
+            "mkdir -p ${{ inputs.release_version }}" \
+            "cd ${{ inputs.release_version }}" > "$CMDFILE"
 
-      - name: Attempt SFTP upload of small file (verbose)
+          for f in release_assets/*; do
+            printf "%s\n" "put \"$f\"" >> "$CMDFILE"
+          done
+
+          printf "%s\n" "bye" >> "$CMDFILE"
+          echo "Running lftp..."
+          lftp -u "$SFTP_USER","$SFTP_PASS" sftp://$SFTP_HOST -f "$CMDFILE"
+
+      - name: Modify manifest and upload to /latest
         run: |
-          set -x
-
-          if [ -z "$SFTP_HOST" ] || [ -z "$SFTP_USER" ] || [ -z "$SFTP_PASS" ]; then
-            echo "One or more SFTP secrets are empty!"
-            exit 2
+          set -eux
+          manifest=$(find release_assets -type f -name '*.manifest.json' | head -n1)
+          if [ -z "$manifest" ]; then
+            echo "No manifest file found!"
+            exit 1
           fi
 
-          CMDFILE=./lftp_test_cmds.txt
+          version="${{ inputs.release_version }}"
+          tmp_manifest=./latest_manifest.json
+          jq \
+            --arg version "$version" \
+            '.path = "https://modotabmount.modoco.io/firmware/" + $version + "/modotabmount-esp32c3.ota.bin"' \
+            "$manifest" > "$tmp_manifest"
+
+          echo "Modified manifest:"
+          cat "$tmp_manifest"
+
+          CMDFILE=./lftp_latest.txt
           printf "%s\n" \
-            "set ftp:trace 3" \
-            "set sftp:debug 5" \
-            "set xfer:log 1" \
-            "set xfer:log-file /dev/stdout" \
-            "cd public_html/modotabmount/firmware || true" \
-            "mkdir diagnostic_test || true" \
-            "cd diagnostic_test || true" \
-            "put small-test-file.txt" \
+            "set sftp:auto-confirm yes" \
+            "cd public_html/modotabmount/firmware" \
+            "mkdir -p latest" \
+            "cd latest" \
+            "put \"$tmp_manifest\" -o modotabmount.manifest.json" \
             "bye" > "$CMDFILE"
 
-          echo "----- lftp command file -----"
-          cat "$CMDFILE"
-          echo "Running lftp..."
-          lftp -u "$SFTP_USER","$SFTP_PASS" sftp://$SFTP_HOST -f "$CMDFILE" || echo "lftp exited with status $?"
+          echo "Uploading modified manifest to /latest..."
+          lftp -u "$SFTP_USER","$SFTP_PASS" sftp://$SFTP_HOST -f "$CMDFILE"
 
-      - name: Final debug echo
-        run: |
-          echo "Diagnostics finished"
+      - name: Done
+        run: echo "✅ Upload completed successfully!"
