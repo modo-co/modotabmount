@@ -28,7 +28,7 @@ jobs:
 
       - name: Download all release assets (best-effort)
         run: |
-          # Use -f so curl returns non-zero on 404; || true to continue if some assets missing
+          # variables available via $RELEASE_VERSION and $RELEASE_REPO
           curl -fL -o modotabmount-esp32c3.elf "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.elf" || true
           curl -fL -o modotabmount-esp32c3.elf.md5 "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.elf.md5" || true
           curl -fL -o modotabmount-esp32c3.elf.sha256 "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.elf.sha256" || true
@@ -45,7 +45,6 @@ jobs:
 
       - name: Update manifest paths (point ota/parts to your site; keep release_url)
         run: |
-          # If manifest exists, update only ota.path and parts[0].path to point to RELEASE_BASE_URL
           if [ -f modotabmount.manifest.json ]; then
             jq --arg url "${RELEASE_BASE_URL}" '
               if (.builds | length) > 0 then
@@ -69,15 +68,17 @@ jobs:
 
       - name: Build lftp commands and upload assets (versioned, debug enabled)
         run: |
-          # Build an lftp command file dynamically so we can conditionally include put commands only for files that exist
           CMDFILE=./lftp_cmds.txt
-          echo "set ftp:trace 3" > $CMDFILE
-          echo "set sftp:debug 5" >> $CMDFILE
-          echo "set xfer:log 1" >> $CMDFILE
-          echo "set xfer:log-file /dev/stdout" >> $CMDFILE
-          echo "cd public_html/modotabmount/firmware" >> $CMDFILE
-          echo "mkdir ${RELEASE_VERSION}" >> $CMDFILE
-          echo "cd ${RELEASE_VERSION}" >> $CMDFILE
+          # create command file with expanded RELEASE_VERSION
+          cat > $CMDFILE <<LFTP_CMDS
+set ftp:trace 3
+set sftp:debug 5
+set xfer:log 1
+set xfer:log-file /dev/stdout
+cd public_html/modotabmount/firmware
+mkdir ${RELEASE_VERSION} || true
+cd ${RELEASE_VERSION}
+LFTP_CMDS
 
           for f in modotabmount-esp32c3.elf \
                    modotabmount-esp32c3.elf.md5 \
@@ -99,28 +100,31 @@ jobs:
           echo "bye" >> $CMDFILE
 
           echo "------ lftp command file ------"
-          cat $CMDFILE
+          sed -n '1,200p' $CMDFILE
           echo "--------------------------------"
 
-          # Run lftp reading commands from file (-f)
+          # run lftp using command file
           lftp -u "$SFTP_USER","$SFTP_PASS" sftp://$SFTP_HOST -f $CMDFILE
 
       - name: Upload manifest to latest (debug enabled)
         run: |
-          # upload the (modified) manifest into latest/ (create dir if necessary)
           CMDFILE=./lftp_latest.txt
-          echo "set ftp:trace 3" > $CMDFILE
-          echo "set sftp:debug 5" >> $CMDFILE
-          echo "set xfer:log 1" >> $CMDFILE
-          echo "set xfer:log-file /dev/stdout" >> $CMDFILE
-          echo "cd public_html/modotabmount/firmware" >> $CMDFILE
-          echo "mkdir latest" >> $CMDFILE
-          echo "cd latest" >> $CMDFILE
+          cat > $CMDFILE <<LFTP_CMDS
+set ftp:trace 3
+set sftp:debug 5
+set xfer:log 1
+set xfer:log-file /dev/stdout
+cd public_html/modotabmount/firmware
+mkdir latest || true
+cd latest
+LFTP_CMDS
+
           if [ -f modotabmount.manifest.json ]; then
             echo "put -O . modotabmount.manifest.json" >> $CMDFILE
           else
             echo "# manifest not present, skipping put" >> $CMDFILE
           fi
+
           echo "bye" >> $CMDFILE
-          cat $CMDFILE
+          sed -n '1,200p' $CMDFILE
           lftp -u "$SFTP_USER","$SFTP_PASS" sftp://$SFTP_HOST -f $CMDFILE
