@@ -12,17 +12,14 @@ jobs:
     name: Build Firmware
     uses: esphome/workflows/.github/workflows/build.yml@2025.8.1
     with:
-      #### Modify below here to match your project ####
       files: |
         modotabmount.factory.yaml
       esphome-version: 2025.10.1
-      combined-name: modotabmount  # Used for combined manifest/metadata grouping
-      #### Modify above here to match your project ####
-
+      combined-name: modotabmount
       release-summary: ${{ github.event.release.body }}
       release-url: ${{ github.event.release.html_url }}
       release-version: ${{ github.event.release.tag_name }}
-      
+
   upload-to-release:
     name: Upload to Release
     needs:
@@ -30,3 +27,65 @@ jobs:
     uses: esphome/workflows/.github/workflows/upload-to-gh-release.yml@2025.8.1
     with:
       version: ${{ github.event.release.tag_name }}
+
+  upload-to-sftp:
+    name: Upload all release assets to SFTP
+    needs:
+      - upload-to-release
+    runs-on: ubuntu-latest
+    env:
+      SFTP_HOST: ${{ secrets.SFTP_HOST }}
+      SFTP_USER: ${{ secrets.SFTP_USER }}
+      SFTP_PASS: ${{ secrets.SFTP_PASS }}
+      RELEASE_VERSION: ${{ github.event.release.tag_name }}
+      RELEASE_REPO: modo-co/modotabmount
+      RELEASE_BASE_URL: https://modotabmount.modoco.io/firmware/${{ github.event.release.tag_name }}
+    steps:
+      - name: Download all release assets
+        run: |
+          curl -L -o modotabmount-esp32c3.elf https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.elf
+          curl -L -o modotabmount-esp32c3.elf.md5 https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.elf.md5
+          curl -L -o modotabmount-esp32c3.elf.sha256 https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.elf.sha256
+          curl -L -o modotabmount-esp32c3.factory.bin https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.factory.bin
+          curl -L -o modotabmount-esp32c3.factory.bin.md5 https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.factory.bin.md5
+          curl -L -o modotabmount-esp32c3.factory.bin.sha256 https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.factory.bin.sha256
+          curl -L -o modotabmount-esp32c3.ota.bin https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.ota.bin
+          curl -L -o modotabmount-esp32c3.ota.bin.md5 https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.ota.bin.md5
+          curl -L -o modotabmount-esp32c3.ota.bin.sha256 https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.ota.bin.sha256
+          curl -L -o modotabmount.manifest.json https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount.manifest.json
+      - name: Install jq and lftp
+        run: sudo apt-get update && sudo apt-get install -y jq lftp
+      - name: Update manifest paths for your site
+        run: |
+          jq --arg url "${RELEASE_BASE_URL}/" '
+            .builds[].ota.path = ($url + "modotabmount-esp32c3.ota.bin")
+            | .builds[].parts[0].path = ($url + "modotabmount-esp32c3.factory.bin")
+          ' modotabmount.manifest.json > modotabmount.manifest.json.tmp
+          mv modotabmount.manifest.json.tmp modotabmount.manifest.json
+      - name: Upload all assets via SFTP (versioned)
+        run: |
+          lftp -u "$SFTP_USER","$SFTP_PASS" sftp://$SFTP_HOST <<EOF
+          cd public_html/modotabmount/firmware
+          mkdir $RELEASE_VERSION
+          cd $RELEASE_VERSION
+          put modotabmount-esp32c3.elf
+          put modotabmount-esp32c3.elf.md5
+          put modotabmount-esp32c3.elf.sha256
+          put modotabmount-esp32c3.factory.bin
+          put modotabmount-esp32c3.factory.bin.md5
+          put modotabmount-esp32c3.factory.bin.sha256
+          put modotabmount-esp32c3.ota.bin
+          put modotabmount-esp32c3.ota.bin.md5
+          put modotabmount-esp32c3.ota.bin.sha256
+          put modotabmount.manifest.json
+          bye
+          EOF
+      - name: Upload manifest as "latest"
+        run: |
+          lftp -u "$SFTP_USER","$SFTP_PASS" sftp://$SFTP_HOST <<EOF
+          cd public_html/modotabmount/firmware
+          mkdir latest
+          cd latest
+          put -O . modotabmount.manifest.json
+          bye
+          EOF
