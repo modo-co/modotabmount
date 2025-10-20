@@ -19,12 +19,11 @@ jobs:
       SFTP_HOST: ${{ secrets.SFTP_HOST }}
       SFTP_USER: ${{ secrets.SFTP_USER }}
       SFTP_PASS: ${{ secrets.SFTP_PASS }}
-      RELEASE_VERSION: ${{ inputs.release_version }}
       RELEASE_REPO: modo-co/modotabmount
-      RELEASE_BASE_URL: https://modotabmount.modoco.io/firmware/${{ inputs.release_version }}
     steps:
       - name: Download all release assets
         run: |
+          RELEASE_VERSION="${{ inputs.release_version }}"
           curl -L -o modotabmount-esp32c3.elf https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.elf
           curl -L -o modotabmount-esp32c3.elf.md5 https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.elf.md5
           curl -L -o modotabmount-esp32c3.elf.sha256 https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.elf.sha256
@@ -39,7 +38,9 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y jq lftp
       - name: Update manifest paths for your site
         run: |
-          jq --arg url "${RELEASE_BASE_URL}/" '
+          RELEASE_VERSION="${{ inputs.release_version }}"
+          RELEASE_BASE_URL="https://modotabmount.modoco.io/firmware/${RELEASE_VERSION}/"
+          jq --arg url "${RELEASE_BASE_URL}" '
             .builds[].ota.path = ($url + "modotabmount-esp32c3.ota.bin")
             | .builds[].parts[0].path = ($url + "modotabmount-esp32c3.factory.bin")
           ' modotabmount.manifest.json > modotabmount.manifest.json.tmp
@@ -48,6 +49,7 @@ jobs:
         run: ls -lh
       - name: Upload all assets via SFTP (versioned, debug enabled)
         run: |
+          RELEASE_VERSION="${{ inputs.release_version }}"
           lftp -u "$SFTP_USER","$SFTP_PASS" sftp://$SFTP_HOST <<EOF
           set ftp:trace 3
           set sftp:debug 5
