@@ -16,6 +16,7 @@ jobs:
     name: Upload assets to SFTP (manual)
     runs-on: ubuntu-latest
     env:
+      # secrets only here; do not try to expand inputs in env
       SFTP_HOST: ${{ secrets.SFTP_HOST }}
       SFTP_USER: ${{ secrets.SFTP_USER }}
       SFTP_PASS: ${{ secrets.SFTP_PASS }}
@@ -25,11 +26,13 @@ jobs:
         run: |
           echo "RELEASE_VERSION=${{ inputs.release_version }}" >> $GITHUB_ENV
           echo "RELEASE_BASE_URL=https://modotabmount.modoco.io/firmware/${{ inputs.release_version }}/" >> $GITHUB_ENV
+          echo "Prepared RELEASE_VERSION=$RELEASE_VERSION"
+          echo "Prepared RELEASE_BASE_URL=$RELEASE_BASE_URL"
 
       - name: Download all release assets (best-effort)
         run: |
           # variables available via $RELEASE_VERSION and $RELEASE_REPO
-          curl -fL -o modotabmount-esp32c3.elf "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.elf" || true
+          curl -fL -o modotabmount-esp32c3.elf   "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.elf"     || true
           curl -fL -o modotabmount-esp32c3.elf.md5 "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.elf.md5" || true
           curl -fL -o modotabmount-esp32c3.elf.sha256 "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.elf.sha256" || true
           curl -fL -o modotabmount-esp32c3.factory.bin "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount-esp32c3.factory.bin" || true
@@ -41,12 +44,14 @@ jobs:
           curl -fL -o modotabmount.manifest.json "https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_VERSION}/modotabmount.manifest.json" || true
 
       - name: Install jq and lftp
-        run: sudo apt-get update && sudo apt-get install -y jq lftp
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq lftp
 
       - name: Update manifest paths (point ota/parts to your site; keep release_url)
         run: |
           if [ -f modotabmount.manifest.json ]; then
-            jq --arg url "${RELEASE_BASE_URL}" '
+            jq --arg url "$RELEASE_BASE_URL" '
               if (.builds | length) > 0 then
                 .builds = (
                   .builds | map(
@@ -57,68 +62,76 @@ jobs:
               else .
               end
             ' modotabmount.manifest.json > modotabmount.manifest.json.tmp && mv modotabmount.manifest.json.tmp modotabmount.manifest.json
-            echo "Updated manifest:"
+            echo "Updated manifest content:"
             cat modotabmount.manifest.json
           else
             echo "No manifest downloaded; skipping manifest update"
           fi
 
       - name: Debug: list files and sizes
-        run: ls -lah
-
-      - name: Build lftp commands and upload assets (versioned, debug enabled)
         run: |
-          CMDFILE=./lftp_cmds.txt
-          # create command file with expanded RELEASE_VERSION
-          echo "set ftp:trace 3" > $CMDFILE
-          echo "set sftp:debug 5" >> $CMDFILE
-          echo "set xfer:log 1" >> $CMDFILE
-          echo "set xfer:log-file /dev/stdout" >> $CMDFILE
-          echo "cd public_html/modotabmount/firmware" >> $CMDFILE
-          echo "mkdir ${RELEASE_VERSION} || true" >> $CMDFILE
-          echo "cd ${RELEASE_VERSION}" >> $CMDFILE
+          echo "Local files in workspace:"
+          ls -lah
 
-          for f in modotabmount-esp32c3.elf \
-                   modotabmount-esp32c3.elf.md5 \
-                   modotabmount-esp32c3.elf.sha256 \
-                   modotabmount-esp32c3.factory.bin \
-                   modotabmount-esp32c3.factory.bin.md5 \
-                   modotabmount-esp32c3.factory.bin.sha256 \
-                   modotabmount-esp32c3.ota.bin \
-                   modotabmount-esp32c3.ota.bin.md5 \
-                   modotabmount-esp32c3.ota.bin.sha256 \
-                   modotabmount.manifest.json; do
+      - name: Build lftp command file and upload assets (versioned, debug enabled)
+        run: |
+          CMDFILE="./lftp_cmds.txt"
+          cat > "$CMDFILE" <<EOF
+set ftp:trace 3
+set sftp:debug 5
+set xfer:log 1
+set xfer:log-file /dev/stdout
+cd public_html/modotabmount/firmware
+mkdir ${RELEASE_VERSION} || true
+cd ${RELEASE_VERSION}
+EOF
+          for f in \
+            modotabmount-esp32c3.elf \
+            modotabmount-esp32c3.elf.md5 \
+            modotabmount-esp32c3.elf.sha256 \
+            modotabmount-esp32c3.factory.bin \
+            modotabmount-esp32c3.factory.bin.md5 \
+            modotabmount-esp32c3.factory.bin.sha256 \
+            modotabmount-esp32c3.ota.bin \
+            modotabmount-esp32c3.ota.bin.md5 \
+            modotabmount-esp32c3.ota.bin.sha256 \
+            modotabmount.manifest.json
+          do
             if [ -f "$f" ]; then
-              echo "put $f" >> $CMDFILE
+              echo "put $f" >> "$CMDFILE"
             else
-              echo "# skipping missing $f" >> $CMDFILE
+              echo "# skipping missing $f" >> "$CMDFILE"
             fi
           done
+          echo "bye" >> "$CMDFILE"
 
-          echo "bye" >> $CMDFILE
+          echo "---- lftp command file: ----"
+          sed -n '1,200p' "$CMDFILE"
+          echo "----------------------------"
 
-          echo "------ lftp command file ------"
-          sed -n '1,200p' $CMDFILE
-          echo "--------------------------------"
-
-          # run lftp using command file
-          lftp -u "$SFTP_USER","$SFTP_PASS" sftp://$SFTP_HOST -f $CMDFILE
+          # Run lftp with the generated command file
+          lftp -u "$SFTP_USER","$SFTP_PASS" sftp://$SFTP_HOST -f "$CMDFILE"
 
       - name: Upload manifest to latest (debug enabled)
         run: |
-          CMDFILE=./lftp_latest.txt
-          echo "set ftp:trace 3" > $CMDFILE
-          echo "set sftp:debug 5" >> $CMDFILE
-          echo "set xfer:log 1" >> $CMDFILE
-          echo "set xfer:log-file /dev/stdout" >> $CMDFILE
-          echo "cd public_html/modotabmount/firmware" >> $CMDFILE
-          echo "mkdir latest || true" >> $CMDFILE
-          echo "cd latest" >> $CMDFILE
+          CMDFILE="./lftp_latest.txt"
+          cat > "$CMDFILE" <<EOF
+set ftp:trace 3
+set sftp:debug 5
+set xfer:log 1
+set xfer:log-file /dev/stdout
+cd public_html/modotabmount/firmware
+mkdir latest || true
+cd latest
+EOF
           if [ -f modotabmount.manifest.json ]; then
-            echo "put -O . modotabmount.manifest.json" >> $CMDFILE
+            echo "put -O . modotabmount.manifest.json" >> "$CMDFILE"
           else
-            echo "# manifest not present, skipping put" >> $CMDFILE
+            echo "# manifest not present, skipping put" >> "$CMDFILE"
           fi
-          echo "bye" >> $CMDFILE
-          sed -n '1,200p' $CMDFILE
-          lftp -u "$SFTP_USER","$SFTP_PASS" sftp://$SFTP_HOST -f $CMDFILE
+          echo "bye" >> "$CMDFILE"
+
+          echo "---- lftp latest command file: ----"
+          sed -n '1,200p' "$CMDFILE"
+          echo "-----------------------------------"
+          lftp -u "$SFTP_USER","$SFTP_PASS" sftp://$SFTP_HOST -f "$CMDFILE"
