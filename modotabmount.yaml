@@ -134,6 +134,7 @@ sensor:
       icon: "mdi:sine-wave"
     shunt_voltage:
       name: "Shunt Voltage"
+      icon: "mdi:sine-wave"
     max_voltage: 5.6V
     max_current: 2.7A
     update_interval: 3s
