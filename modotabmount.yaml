@@ -29,8 +29,8 @@ ota:
 
 web_server:
   port: 80
-  version: 3  # IDF-based async server, lighter than v2
-  log: false
+  version: 3
+  log: true
 
 bluetooth_proxy:
   active: true
