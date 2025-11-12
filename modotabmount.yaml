@@ -4,14 +4,16 @@ esphome:
   name_add_mac_suffix: true
 
   # --------------------------------------------------------------------
-  # 💡 LED indication for AP setup mode (fixed syntax for 2025.10.x)
+  # 💡 LED indication for AP setup mode (fixed for 2025.10.x)
   # --------------------------------------------------------------------
   on_boot:
     priority: -100
     then:
       - if:
           condition:
-            lambda: 'return wifi::global_wifi_component->is_ap_active();'
+            lambda: |-
+              return !wifi::global_wifi_component->is_connected() &&
+                     wifi::global_wifi_component->has_ap();
           then:
             - logger.log: "📶 Access Point active — enabling setup LED Scanner effect"
             - light.turn_on:
