@@ -1,0 +1,557 @@
+esphome:
+  name: modotabmount
+  friendly_name: Modo Tab Mount
+  name_add_mac_suffix: true
+
+  # --------------------------------------------------------------------
+  # 💡 LED indication for AP setup mode (fixed for 2025.10.x)
+  # --------------------------------------------------------------------
+  on_boot:
+    priority: -100
+    then:
+      - if:
+          condition:
+            lambda: |-
+              return !wifi::global_wifi_component->is_connected() &&
+                     wifi::global_wifi_component->has_ap();
+          then:
+            - logger.log: "📶 Access Point active — enabling setup LED Scanner effect"
+            - light.turn_on:
+                id: addressable_led
+                effect: "Scanner"
+                brightness: 100%
+                red: 0%
+                green: 0%
+                blue: 100%
+          else:
+            - logger.log: "✅ Wi-Fi connected — disabling setup LED"
+            - light.turn_off: addressable_led
+
+esp32:
+  board: esp32-c3-devkitm-1
+  framework:
+    type: esp-idf
+  variant: esp32c3
+
+# Lighter logging to save RAM
+logger:
+
+debug:
+  update_interval: 10s
+
+network:
+
+api:
+
+wifi:
+  ap:
+
+captive_portal:
+
+ota:
+  - platform: esphome
+
+web_server:
+  port: 80
+  version: 3
+  log: true
+
+bluetooth_proxy:
+  active: true
+
+i2c:
+  sda: 7
+  scl: 21
+  scan: true
+
+globals:
+  - id: prev_led_brightness
+    type: float
+    restore_value: no
+    initial_value: '1.0'
+  - id: last_charging_state
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: power_accum
+    type: float
+    restore_value: no
+    initial_value: '0.0'
+  - id: current_accum
+    type: float
+    restore_value: no
+    initial_value: '0.0'
+  - id: voltage_accum
+    type: float
+    restore_value: no
+    initial_value: '0.0'
+  - id: sample_count
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: led_dimmed_by_charge
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+# --------------------------------------------------------------------
+# PWM output
+# --------------------------------------------------------------------
+output:
+  - platform: ledc
+    pin: 6
+    id: tablet_pwm
+    frequency: 1000 Hz
+
+# --------------------------------------------------------------------
+# ⚡ Sensor and Control
+# --------------------------------------------------------------------
+switch:
+  - platform: template
+    id: tablet_charging
+    name: "Tablet Charging"
+    icon: "mdi:tablet-cellphone"
+    optimistic: true
+    web_server:
+      sorting_weight: 1
+
+light:
+  - platform: esp32_rmt_led_strip
+    id: addressable_led
+    name: "LED"
+    icon: "mdi:television-ambient-light"
+    chipset: WS2812
+    pin: GPIO5
+    num_leds: 64
+    rgb_order: GRB
+    default_transition_length: 1s
+    web_server:
+      sorting_weight: 2
+    effects:
+      - addressable_rainbow:
+          name: Rainbow
+      - addressable_rainbow:
+          name: Rainbow Fast
+          speed: 10
+      - addressable_color_wipe:
+          name: Color Wipe
+      - addressable_color_wipe:
+          name: Color Wipe Reverse
+          reverse: true
+      - addressable_twinkle:
+          name: Twinkle
+          twinkle_probability: 5%
+          progress_interval: 4ms
+      - addressable_random_twinkle:
+          name: Random Twinkle
+      - addressable_scan:
+          name: Scanner
+          move_interval: 50ms
+      - addressable_fireworks:
+          name: Fireworks
+          update_interval: 32ms
+          spark_probability: 10%
+          fade_out_rate: 120
+      - addressable_flicker:
+          name: Flicker
+          intensity: 5%
+      - pulse:
+          name: Pulse
+          transition_length: 1200ms
+          update_interval: 1200ms
+      - random:
+          name: Random Colors
+      - addressable_color_wipe:
+          name: Dual Color Wipe
+          colors:
+            - red: 100%
+              green: 0%
+              blue: 0%
+              num_leds: 32
+            - red: 0%
+              green: 0%
+              blue: 100%
+              num_leds: 32
+      - addressable_color_wipe:
+          name: Soft White Sweep
+          colors:
+            - red: 100%
+              green: 70%
+              blue: 45%
+              num_leds: 32
+            - red: 20%
+              green: 10%
+              blue: 5%
+              num_leds: 32
+      - addressable_flicker:
+          name: Candle Light
+          intensity: 8%
+      - addressable_fireworks:
+          name: Fireplace
+          update_interval: 64ms
+          spark_probability: 3%
+          fade_out_rate: 90
+      - addressable_rainbow:
+          name: Party Rainbow
+          speed: 5
+      - addressable_twinkle:
+          name: Celebration Twinkle
+          twinkle_probability: 15%
+          progress_interval: 2ms
+      - addressable_scan:
+          name: Energy Beam
+          move_interval: 20ms
+      - addressable_random_twinkle:
+          name: Galaxy
+      - addressable_fireworks:
+          name: Spark Storm
+          update_interval: 16ms
+          spark_probability: 20%
+          fade_out_rate: 160
+
+text_sensor:
+  - platform: template
+    name: "Charging Status"
+    id: charging_status
+    icon: "mdi:lightning-bolt-outline"
+    update_interval: never
+    web_server:
+      sorting_weight: 3
+
+# --------------------------------------------------------------------
+# 🔌 Sensors (before interval!)
+# --------------------------------------------------------------------
+sensor:
+
+  - platform: sht3xd
+    temperature:
+      name: "SHT3x Temperature"
+      id: sht_temp
+      device_class: temperature
+      state_class: measurement
+      icon: "mdi:thermometer"
+    humidity:
+      name: "SHT3x Humidity"
+      id: sht_hum
+      device_class: humidity
+      state_class: measurement
+      icon: "mdi:water-percent"
+    update_interval: 10s
+
+  - platform: template
+    name: "Bus Voltage"
+    id: avg_voltage
+    unit_of_measurement: "V"
+    accuracy_decimals: 2
+    icon: "mdi:flash"
+    device_class: voltage
+    state_class: measurement
+    lambda: |-
+      return 0.0;
+    update_interval: never
+    web_server:
+      sorting_weight: 4
+
+  - platform: template
+    name: "Bus Voltage Inst."
+    id: voltage_act
+    unit_of_measurement: "V"
+    icon: "mdi:flash-triangle-outline"
+    device_class: voltage
+    state_class: measurement
+    lambda: |-
+      return 0.0;
+    update_interval: never
+    web_server:
+      sorting_weight: 5
+
+  - platform: template
+    name: "Current"
+    id: avg_current
+    unit_of_measurement: "A"
+    accuracy_decimals: 3
+    icon: "mdi:current-ac"
+    device_class: current
+    state_class: measurement
+    lambda: |-
+      return 0.0;
+    update_interval: never
+    web_server:
+      sorting_weight: 6
+
+  - platform: template
+    name: "Output Current Inst."
+    id: current_act
+    unit_of_measurement: "A"
+    icon: "mdi:current-dc"
+    device_class: current
+    state_class: measurement
+    lambda: |-
+      return 0.0;
+    update_interval: never
+    web_server:
+      sorting_weight: 7
+
+  - platform: template
+    name: "Power"
+    id: avg_power
+    unit_of_measurement: "W"
+    accuracy_decimals: 2
+    icon: "mdi:lightning-bolt"
+    device_class: power
+    state_class: measurement
+    lambda: |-
+      return 0.0;
+    update_interval: never
+    web_server:
+      sorting_weight: 8
+
+  - platform: template
+    name: "Output Power Inst."
+    id: power_act
+    unit_of_measurement: "W"
+    icon: "mdi:flash-alert-outline"
+    device_class: power
+    state_class: measurement
+    lambda: |-
+      return 0.0;
+    update_interval: never
+    web_server:
+      sorting_weight: 9
+
+  - platform: ina219
+    address: 0x40
+    shunt_resistance: 0.1 ohm
+    current:
+      id: ina_current
+      internal: true
+    power:
+      id: ina_power
+      internal: true
+    bus_voltage:
+      id: ina_voltage
+      internal: true
+    update_interval: 1s
+
+  # --- Diagnostics ---
+  - platform: internal_temperature
+    name: "ESP32 Internal Temp"
+    id: esp32_internal_temp
+    update_interval: 15s
+    icon: "mdi:thermometer-lines"
+    entity_category: diagnostic
+    web_server:
+      sorting_weight: 20
+
+  - platform: uptime
+    name: "Uptime"
+    type: seconds
+    icon: "mdi:clock-outline"
+    entity_category: diagnostic
+    web_server:
+      sorting_weight: 21
+
+  - platform: wifi_signal
+    name: "WiFi Signal"
+    update_interval: 60s
+    icon: "mdi:wifi"
+    entity_category: diagnostic
+    web_server:
+      sorting_weight: 22
+
+  - platform: debug
+    free:
+      name: "Heap Free"
+      icon: "mdi:memory"
+      web_server:
+        sorting_weight: 23
+    block:
+      name: "Heap Max Block"
+      icon: "mdi:memory"
+      web_server:
+        sorting_weight: 24
+    loop_time:
+      name: "Loop Time"
+      icon: "mdi:timer-outline"
+      web_server:
+        sorting_weight: 25
+
+# --------------------------------------------------------------------
+# ⚙️ Configuration
+# --------------------------------------------------------------------
+number:
+  - platform: template
+    name: "Set Charging Limit"
+    id: charging_limit_level
+    optimistic: true
+    min_value: 30
+    max_value: 100
+    step: 2
+    restore_value: true
+    initial_value: 100
+    unit_of_measurement: "%"
+    icon: "mdi:lightning-bolt"
+    entity_category: config
+    web_server:
+      sorting_weight: 30
+
+  - platform: template
+    name: "Max Temperature"
+    id: max_temp
+    optimistic: true
+    restore_value: true
+    min_value: 70
+    max_value: 100
+    step: 1
+    initial_value: 85
+    unit_of_measurement: "°C"
+    icon: "mdi:thermometer"
+    entity_category: config
+    web_server:
+      sorting_weight: 31
+
+  - platform: template
+    name: "Throttle Strength"
+    id: throttle_ratio
+    optimistic: true
+    restore_value: true
+    min_value: 0.3
+    max_value: 0.8
+    step: 0.05
+    initial_value: 0.5
+    unit_of_measurement: "ratio"
+    icon: "mdi:flash-outline"
+    entity_category: config
+    web_server:
+      sorting_weight: 32
+
+  - platform: template
+    name: "LED Dim Level"
+    id: led_dim_level
+    optimistic: true
+    restore_value: true
+    min_value: 50
+    max_value: 75
+    step: 1
+    initial_value: 60
+    unit_of_measurement: "%"
+    icon: "mdi:brightness-6"
+    entity_category: config
+    web_server:
+      sorting_weight: 33
+
+button:
+  - platform: restart
+    name: "Restart Device"
+    icon: "mdi:restart"
+    entity_category: config
+    web_server:
+      sorting_weight: 34
+
+  - platform: factory_reset
+    name: "Factory Reset Device"
+    icon: "mdi:cog-refresh"
+    entity_category: config
+    web_server:
+      sorting_weight: 35
+
+# --------------------------------------------------------------------
+# 🧠 Main logic (last)
+# --------------------------------------------------------------------
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          float temp = id(esp32_internal_temp).state;
+          bool charging_on = id(tablet_charging).state;
+          static unsigned int burst_phase = 0;
+          static bool cooling = false;
+          float max_temp_val = id(max_temp).state;
+          float limit_ratio = id(charging_limit_level).state / 100.0f;
+          float throttle = id(throttle_ratio).state;
+          float level = limit_ratio;
+          std::string status = "Normal";
+
+          if (!charging_on) {
+            level = 0.0f;
+            status = "Off";
+          } else if (temp >= max_temp_val + 3.0f) {
+            cooling = true;
+            status = "Cooling Down";
+          } else if (cooling && temp <= (max_temp_val - 3.0f)) {
+            cooling = false;
+          }
+
+          if (charging_on && !cooling) {
+            if (temp >= max_temp_val + 2.0f) {
+              status = "Thermal throttling 3";
+              if (burst_phase < 3) level = throttle; else level = limit_ratio;
+              burst_phase = (burst_phase + 1) % 4;
+            } else if (temp >= max_temp_val) {
+              status = "Thermal throttling 2";
+              if (burst_phase < 3) level = throttle; else level = limit_ratio;
+              burst_phase = (burst_phase + 1) % 5;
+            } else if (temp >= (max_temp_val - 3.0f)) {
+              status = "Thermal throttling 1";
+              if (burst_phase < 2) level = throttle; else level = limit_ratio;
+              burst_phase = (burst_phase + 1) % 5;
+            } else {
+              status = "Normal";
+              level = limit_ratio;
+              burst_phase = 0;
+            }
+          }
+
+          id(tablet_pwm).set_level(level);
+          id(charging_status).publish_state(status);
+
+          // LED dimming control
+          auto led = id(addressable_led);
+          float dim_level = id(led_dim_level).state / 100.0f;
+          if (charging_on && led->current_values.is_on()) {
+            float current_brightness = led->current_values.get_brightness();
+            if (current_brightness > dim_level + 0.01f) {
+              id(prev_led_brightness) = current_brightness;
+              id(led_dimmed_by_charge) = true;
+              auto call = led->turn_on();
+              call.set_transition_length(1000);
+              call.set_brightness(dim_level);
+              call.perform();
+            } else {
+              id(led_dimmed_by_charge) = false;
+            }
+          } else if (!charging_on && led->current_values.is_on()) {
+            if (id(led_dimmed_by_charge)) {
+              auto call = led->turn_on();
+              call.set_transition_length(1000);
+              call.set_brightness(id(prev_led_brightness));
+              call.perform();
+              id(led_dimmed_by_charge) = false;
+            }
+          }
+
+          // 30s averaging
+          id(power_act).publish_state(id(ina_power).state);
+          id(current_act).publish_state(id(ina_current).state);
+          id(voltage_act).publish_state(id(ina_voltage).state);
+          id(power_accum) += id(ina_power).state;
+          id(current_accum) += id(ina_current).state;
+          id(voltage_accum) += id(ina_voltage).state;
+          id(sample_count)++;
+          if (id(sample_count) >= 30) {
+            id(avg_power).publish_state(id(power_accum) / id(sample_count));
+            id(avg_current).publish_state(id(current_accum) / id(sample_count));
+            id(avg_voltage).publish_state(id(voltage_accum) / id(sample_count));
+            id(power_accum) = id(current_accum) = id(voltage_accum) = 0;
+            id(sample_count) = 0;
+          }
+
+# --------------------------------------------------------------------
+# Helpers
+# --------------------------------------------------------------------
+binary_sensor:
+  - platform: template
+    id: led_power_low
+    internal: true
+    lambda: |-
+      return id(ina_power).state < 7.5;
