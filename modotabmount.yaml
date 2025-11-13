@@ -415,7 +415,7 @@ number:
     optimistic: true
     restore_value: true
     min_value: 50
-    max_value: 75
+    max_value: 100
     step: 1
     initial_value: 60
     unit_of_measurement: "%"
