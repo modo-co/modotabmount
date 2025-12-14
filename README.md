@@ -127,9 +127,9 @@ Advanced users may modify the ESPHome YAML configuration and build custom firmwa
 Custom firmware modifications are performed **at the user’s own risk**.
 
 
-## 🔒 Safety Notice
+## ⚠️ Safety Notice
 
-⚠️ This project involves **mains voltage (230V AC)**.  
+This project involves **mains voltage (110 - 230V AC)**.  
 Installation should only be performed by qualified persons.  
 If unsure, consult a licensed electrician.
 
