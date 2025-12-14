@@ -53,6 +53,86 @@ This repository contains the files and resources needed for the Modo Tab Mount p
 | `README.md`             | Project overview                                                            |
 | `LICENSE`               | Project license information                                                 |
 
+
+## 📦 Firmware
+
+The **Modo Tab Mount** firmware runs on an **ESP32-C3** and is built using **ESPHome**.  
+It provides safe tablet charging, power monitoring, LED feedback, and seamless **Home Assistant integration**.
+
+### Distribution model
+
+- Firmware is provided as a **precompiled binary (`.bin`)** via **GitHub Releases**
+- End users **do not need to install ESPHome or compile anything**
+- The ESPHome YAML configuration is included **for reference and advanced customization only**
+
+### 🔌 Smart Charging Control
+
+- PWM-regulated 5V output for controlled tablet charging
+- Charging can be enabled or disabled remotely
+- Configurable **charging limit (%)** to reduce battery wear
+- **Thermal protection** with automatic throttling based on device temperature
+- Cool-down logic prevents overheating during long charging sessions
+
+Charging state is exposed as a readable status  
+(e.g. *Normal*, *Thermal throttling*, *Cooling down*).
+
+### ⚡ Power & Energy Monitoring
+
+An onboard **INA219** sensor measures:
+
+- Output voltage
+- Output current
+- Instantaneous power
+- 30-second averaged values for stable reporting
+
+All values are available in **Home Assistant** and via the **built-in web interface**, enabling automations based on real power usage.
+
+### 💡 LED Feedback & Ambient Lighting
+
+The integrated **WS2812 LED ring** provides both functional feedback and ambient lighting:
+
+- Automatic LED indication during **Wi-Fi access-point setup mode**
+- Full RGB control with multiple built-in effects
+- Automatic LED dimming while charging to reduce visual distraction
+- All LED behavior can be controlled via Home Assistant or the local web UI
+
+### 🌐 Connectivity & Interfaces
+
+- Native **Home Assistant API** (ESPHome)
+- Built-in **web interface** for local control and diagnostics
+- **OTA firmware updates** supported
+- **Bluetooth Proxy** enabled to extend Home Assistant BLE coverage
+
+### ⚙️ Configuration & Diagnostics
+
+User-configurable parameters include:
+
+- Charging limit
+- Maximum temperature
+- Throttle strength
+- LED brightness during charging
+
+Built-in diagnostics expose:
+
+- Wi-Fi signal strength
+- Device uptime
+- Internal temperature
+- Memory usage
+
+A software-triggered factory reset is also available.
+
+### 🔧 Advanced Usage
+
+Advanced users may modify the ESPHome YAML configuration and build custom firmware versions.  
+Custom firmware modifications are performed **at the user’s own risk**.
+
+
+## 🔒 Safety Notice
+
+⚠️ This project involves **mains voltage (230V AC)**.  
+Installation should only be performed by qualified persons.  
+If unsure, consult a licensed electrician.
+
 ## License
 
 ### Hardware (3D Models, Schematics, PCB Layouts)
