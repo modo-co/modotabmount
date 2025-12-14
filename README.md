@@ -31,13 +31,13 @@ This project is aimed at **makers, home automation enthusiasts, and developers**
 
 | Component            | Description                                                                 |
 |----------------------|-----------------------------------------------------------------------------|
+| Wall Box Mount       | 3D-printed (PETG + CF fillament) with embedded neodymium magnets/iron ring  |
 | Tablet Plate         | 3 mm thick solid iron plate, attached using 3M VHB tape                     |
-| Mounting Plate       | 3D-printed (PETG + CF fillament) with embedded neodymium magnets/iron ring    |
 | Power Supply         | MEAN WELL IRM-10-5 (5V, 2A)                                                |
 | PCB                  | Custom PCB for power supply and peripheral connections               |
 | Microcontroller      | Seeed Studio XIAO ESP32-C3 with USB-C and exposed GPIOs                    |
-| LEDs                 | 2.7 mm WS2812B addressable LED strip (optional)                             |
-| Flat Charging Cable  | Flat FPC cable with Type-C, Lightning, or Micro USB connector               |
+| LEDs                 | 2.7 mm WS2812B addressable LED strip                            |
+| Charging Cable       | Flat FPC cable with Type-C, Lightning, or Micro USB connector               |
 
 
 ## Repository Content
@@ -46,12 +46,11 @@ This repository contains the files and resources needed for the Modo Tab Mount p
 
 | Folder / File           | Description                                                                 |
 |-------------------------|-----------------------------------------------------------------------------|
-| `3D_Models/`            | 3D-printable files for the mounting plate and other components (STL/STEP)   |
 | `PCB/`                  | Schematics and Gerber files for the custom power supply and controller PCB  |
 | `Docs/`                 | Installation instructions, datasheets, and technical documentation          |
-| `Images/`               | Photos, diagrams, and reference images for assembly                         |
+| `Images/`               | Photos, diagrams                                                            |
 | `modotabmount.yaml`     | ESPHome configuration file                                                  |
-| `README.md`             | Project overview and instructions                                           |
+| `README.md`             | Project overview                                                            |
 | `LICENSE`               | Project license information                                                 |
 
 ## License
