@@ -368,7 +368,7 @@ sensor:
 # --------------------------------------------------------------------
 number:
   - platform: template
-    name: "Charging Power%"
+    name: "Charging Power"
     id: charging_limit_level
     optimistic: true
     min_value: 30
@@ -398,7 +398,7 @@ number:
       sorting_weight: 31
 
   - platform: template
-    name: "Throttle Ratio"
+    name: "Thermal Throttle Ratio"
     id: throttle_ratio
     optimistic: true
     restore_value: true
@@ -413,14 +413,14 @@ number:
       sorting_weight: 32
 
   - platform: template
-    name: "LED Dim level"
+    name: "Charging LED Dim Level"
     id: led_dim_level
     optimistic: true
     restore_value: true
     min_value: 50
     max_value: 100
     step: 1
-    initial_value: 60
+    initial_value: 75
     unit_of_measurement: "%"
     icon: "mdi:brightness-6"
     entity_category: config
