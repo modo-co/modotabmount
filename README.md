@@ -57,9 +57,7 @@ This repository contains the files and resources needed for the Modo Tab Mount p
 ## 📦 Firmware
 
 The **Modo Tab Mount** firmware runs on an **ESP32-C3** and is built using **ESPHome**.  
-It provides safe tablet charging, power monitoring, LED feedback, and seamless **Home Assistant integration**.
-
-### Distribution model
+It provides tablet charging control, power monitoring, LED feedback, and seamless **Home Assistant integration**.
 
 - Firmware is provided as a **precompiled binary (`.bin`)** via **GitHub Releases**
 - End users **do not need to install ESPHome or compile anything**
@@ -69,9 +67,8 @@ It provides safe tablet charging, power monitoring, LED feedback, and seamless *
 
 - PWM-regulated 5V output for controlled tablet charging
 - Charging can be enabled or disabled remotely
-- Configurable **charging limit (%)** to reduce battery wear
 - **Thermal protection** with automatic throttling based on device temperature
-- Cool-down logic prevents overheating during long charging sessions
+- As Powers supply is in limited space, during during long charging sessions it can get warm. Firmware includes cool-down logic prevents overheating 
 
 Charging state is exposed as a readable status  
 (e.g. *Normal*, *Thermal throttling*, *Cooling down*).
@@ -82,18 +79,17 @@ An onboard **INA219** sensor measures:
 
 - Output voltage
 - Output current
-- Instantaneous power
 - 30-second averaged values for stable reporting
 
 All values are available in **Home Assistant** and via the **built-in web interface**, enabling automations based on real power usage.
 
 ### 💡 LED Feedback & Ambient Lighting
 
-The integrated **WS2812 LED ring** provides both functional feedback and ambient lighting:
+The integrated **WS2812 LED ** provides both functional feedback and ambient lighting:
 
 - Automatic LED indication during **Wi-Fi access-point setup mode**
 - Full RGB control with multiple built-in effects
-- Automatic LED dimming while charging to reduce visual distraction
+- Automatic LED dimming while charging
 - All LED behavior can be controlled via Home Assistant or the local web UI
 
 ### 🌐 Connectivity & Interfaces
@@ -107,7 +103,6 @@ The integrated **WS2812 LED ring** provides both functional feedback and ambient
 
 User-configurable parameters include:
 
-- Charging limit
 - Maximum temperature
 - Throttle strength
 - LED brightness during charging
@@ -125,7 +120,6 @@ A software-triggered factory reset is also available.
 
 Advanced users may modify the ESPHome YAML configuration and build custom firmware versions.  
 Custom firmware modifications are performed **at the user’s own risk**.
-
 
 ## ⚠️ Safety Notice
 
