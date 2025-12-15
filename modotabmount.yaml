@@ -219,7 +219,7 @@ text_sensor:
       sorting_weight: 3
 
 # --------------------------------------------------------------------
-# 🔌 Sensors (before interval!)
+# 🔌 Sensors
 # --------------------------------------------------------------------
 sensor:
   - platform: template
@@ -246,6 +246,7 @@ sensor:
     lambda: |-
       return 0.0;
     update_interval: never
+    disabled_by_default: true
     web_server:
       sorting_weight: 5
 
@@ -273,6 +274,7 @@ sensor:
     lambda: |-
       return 0.0;
     update_interval: never
+    disabled_by_default: true
     web_server:
       sorting_weight: 7
 
@@ -300,6 +302,7 @@ sensor:
     lambda: |-
       return 0.0;
     update_interval: never
+    disabled_by_default: true
     web_server:
       sorting_weight: 9
 
@@ -365,7 +368,7 @@ sensor:
 # --------------------------------------------------------------------
 number:
   - platform: template
-    name: "Set Charging Limit"
+    name: "Charging Power%"
     id: charging_limit_level
     optimistic: true
     min_value: 30
@@ -380,7 +383,7 @@ number:
       sorting_weight: 30
 
   - platform: template
-    name: "Max Temperature"
+    name: "Max ESP32 Temp."
     id: max_temp
     optimistic: true
     restore_value: true
@@ -395,14 +398,14 @@ number:
       sorting_weight: 31
 
   - platform: template
-    name: "Throttle Strength"
+    name: "Throttle Ratio"
     id: throttle_ratio
     optimistic: true
     restore_value: true
     min_value: 0.3
-    max_value: 0.8
+    max_value: 0.95
     step: 0.05
-    initial_value: 0.5
+    initial_value: 0.9
     unit_of_measurement: "ratio"
     icon: "mdi:flash-outline"
     entity_category: config
@@ -410,7 +413,7 @@ number:
       sorting_weight: 32
 
   - platform: template
-    name: "LED Dim Level"
+    name: "LED Dim level"
     id: led_dim_level
     optimistic: true
     restore_value: true
@@ -432,15 +435,8 @@ button:
     web_server:
       sorting_weight: 34
 
-  - platform: factory_reset
-    name: "Factory Reset Device"
-    icon: "mdi:cog-refresh"
-    entity_category: config
-    web_server:
-      sorting_weight: 35
-
 # --------------------------------------------------------------------
-# 🧠 Main logic (last)
+# 🧠 Main logic
 # --------------------------------------------------------------------
 interval:
   - interval: 1s
