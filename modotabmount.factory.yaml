@@ -43,3 +43,11 @@ update:
     device_class: firmware
     entity_category: diagnostic
     icon: "mdi:chip"
+
+button:
+  - platform: factory_reset
+    name: "Factory Reset Device"
+    icon: "mdi:cog-refresh"
+    entity_category: config
+    web_server:
+      sorting_weight: 35
