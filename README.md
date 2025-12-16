@@ -121,6 +121,22 @@ This project involves **mains voltage (110–230 V AC)**.
 Installation must be performed by qualified persons only.  
 If unsure, consult a licensed electrician.
 
+## 🏷 Commercial Product Note
+
+This repository documents the **Modo Tab Mount project** and provides reference designs, firmware, and documentation intended for **makers and developers**.
+
+A **commercially assembled Modo Tab Mount device**  offered separately by **MB Modoco**.  
+Commercial units are:
+
+- Assembled and tested by the manufacturer  
+- Supplied with preinstalled firmware  
+- Intended for end-user installation  
+- Placed on the market under applicable EU conformity requirements  
+
+The open-source materials in this repository are provided **for reference and non-commercial use** as defined by the applicable licenses.
+
+End users who purchase a commercial Modo Tab Mount device should refer to the **official product documentation and instructions** supplied with the device.
+
 ## License
 
 ### Hardware (3D Models, Schematics, PCB Layouts)
