@@ -1,74 +1,65 @@
-# Modo Tab Mount – Smart Tablet Wall Mount
+# Modo Tab Mount
 
-**Smart tablet mount with ESPHome firmware, magnetic docking, and customizable sensors.**  
+**Smart tablet wall mount with ESPHome firmware, magnetic docking, and configurable smart features.**
 
 ![Modo Tab Mount demo](https://raw.githubusercontent.com/modo-co/modotabmount/main/images/modotabmount_animat.gif)
 
 ## Overview
 
-Modo Tab Mount is a modular wall mount for tablets, designed for **standard EU flush electrical back boxes**. It combines sleek design with smart electronics:
+**Modo Tab Mount** is a modular smart wall mount for tablets, designed for **standard EU flush electrical back boxes**.  
+It combines a clean, floating design with integrated smart electronics and Home Assistant compatibility.
 
-- Magnetic docking for easy attach/detach  
-- Floating tablet design (minimal wall gap)  
-- Integrated 5V smart power supply  
-- ESP32-based microcontroller with ESPHome firmware  
-- Optional sensors for automation and monitoring  
-- Fully compatible with Home Assistant  
-
-This project is aimed at **makers, home automation enthusiasts, and developers** who want a customizable smart wall mount.
+The project is suitable for **makers, home automation enthusiasts, and developers** who want a customizable and extensible tablet mounting solution.
 
 ## Features
 
-- **Magnetic Docking:** Secure snap-on mounting without mechanical locks.  
-- **Floating Design:** Elegant, minimal gap between tablet and wall.  
-- **Smart Power Supply:** 5V output for tablet and peripherals.  
-- **Backlit LEDs:** Optional WS2812B individually addressable LED strip bracket for status indications or night light.  
-- **ESPHome Firmware:** Open-source, customizable for sensors, LEDs, and automations.  
-- **Home Assistant Ready:** Integrates with Home Assistant for tablet charging automation, power monitoring, and reading connected sensors.  
-- **Expandable:** Add custom peripherals like air quality or occupancy sensors.
+- **Magnetic Docking** – Secure snap-on mounting without mechanical locks  
+- **Floating Design** – Minimal gap between tablet and wall  
+- **Integrated Smart Power Supply** – 5V output for tablet charging and peripherals  
+- **ESP32-based Controller** – Runs ESPHome firmware  
+- **Backlit LEDs** – Optional WS2812B addressable LED bracket for status or ambient light  
+- **Home Assistant Ready** – Native integration via ESPHome  
+- **Expandable** – Support for additional sensors and peripherals  
 
 ## Hardware Components
 
-| Component            | Description                                                                 |
-|----------------------|-----------------------------------------------------------------------------|
-| Wall Box Mount       | 3D-printed (PETG + CF fillament) with embedded neodymium magnets/iron ring  |
-| Tablet Plate         | 3 mm thick solid iron plate, attached using 3M VHB tape                     |
-| Power Supply         | MEAN WELL IRM-10-5 (5V, 2A)                                                |
-| PCB                  | Custom PCB for power supply and peripheral connections               |
-| Microcontroller      | Seeed Studio XIAO ESP32-C3 with USB-C and exposed GPIOs                    |
-| LEDs                 | 2.7 mm WS2812B addressable LED strip                            |
-| Charging Cable       | Flat FPC cable with Type-C, Lightning, or Micro USB connector               |
-
+| Component | Description |
+|----------|-------------|
+| Wall Box Mount | 3D-printed (PETG + CF filament) enclosure with embedded neodymium magnets / iron ring |
+| Tablet Plate | 3 mm solid iron plate, attached using 3M VHB tape |
+| Power Supply | Mean Well IRM-10-5 (5 V, 2 A) |
+| PCB | Custom PCB for power distribution and peripheral connections |
+| Microcontroller | Seeed Studio XIAO ESP32-C3 |
+| LEDs | 2.7 mm WS2812B addressable LED strip |
+| Charging Cable | Flat FPC cable with USB-C, Lightning, or Micro-USB connector |
 
 ## Repository Content
 
-This repository contains the files and resources needed for the Modo Tab Mount project:
-
-| Folder / File           | Description                                                                 |
-|-------------------------|-----------------------------------------------------------------------------|
-| `PCB/`                  | Schematics and Gerber files for the custom power supply and controller PCB  |
-| `Docs/`                 | Installation instructions, datasheets, and technical documentation          |
-| `Images/`               | Photos, diagrams                                                            |
-| `modotabmount.yaml`     | ESPHome configuration file                                                  |
-| `README.md`             | Project overview                                                            |
-| `LICENSE`               | Project license information                                                 |
-
+| Folder / File | Description |
+|--------------|-------------|
+| `PCB/` | Schematics and Gerber files for the custom PCB |
+| `Docs/` | Installation instructions, datasheets, and technical documentation |
+| `Images/` | Photos and diagrams |
+| `modotabmount.yaml` | ESPHome firmware configuration |
+| `README.md` | Project overview |
+| `LICENSE` | License information |
 
 ## 📦 Firmware
 
 The **Modo Tab Mount** firmware runs on an **ESP32-C3** and is built using **ESPHome**.  
-It provides tablet charging control, power monitoring, LED feedback, and seamless **Home Assistant integration**.
+It provides charging control, power monitoring, LED feedback, and Home Assistant integration.
 
-- Firmware is provided as a **precompiled binary (`.bin`)** via **GitHub Releases**
-- End users **do not need to install ESPHome or compile anything**
-- The ESPHome YAML configuration is included **for reference and advanced customization only**
+- Firmware is distributed as a **precompiled binary (`.bin`)** via **GitHub Releases**
+- End users **do not need to install ESPHome or compile firmware**
+- The ESPHome YAML file is included **for reference and advanced customization**
+
 
 ### 🔌 Smart Charging Control
 
-- PWM-regulated 5V output for controlled tablet charging
-- Charging can be enabled or disabled remotely
-- **Thermal protection** with automatic throttling based on device temperature
-- As Powers supply is in limited space, during during long charging sessions it can get warm. Firmware includes cool-down logic prevents overheating 
+- PWM-regulated 5V output for controlled tablet charging  
+- Charging can be enabled or disabled remotely  
+- **Firmware-based thermal protection** with automatic throttling  
+- During prolonged charging in a confined wall box, the power supply may warm up; firmware logic reduces or pauses charging to prevent excessive temperatures  
 
 Charging state is exposed as a readable status  
 (e.g. *Normal*, *Thermal throttling*, *Cooling down*).
@@ -77,34 +68,34 @@ Charging state is exposed as a readable status
 
 An onboard **INA219** sensor measures:
 
-- Output voltage
-- Output current
-- 30-second averaged values for stable reporting
+- Output voltage  
+- Output current  
+- 30-second averaged values for stable reporting  
 
-All values are available in **Home Assistant** and via the **built-in web interface**, enabling automations based on real power usage.
+All values are available in **Home Assistant** and via the **built-in web interface**, enabling automations based on actual power usage.
 
 ### 💡 LED Feedback & Ambient Lighting
 
-The integrated **WS2812 LED ** provides both functional feedback and ambient lighting:
+The integrated **WS2812B LED strip** provides functional feedback and ambient lighting:
 
-- Automatic LED indication during **Wi-Fi access-point setup mode**
+- Visual indication during **Wi-Fi access-point setup mode**
 - Full RGB control with multiple built-in effects
-- Automatic LED dimming while charging
-- All LED behavior can be controlled via Home Assistant or the local web UI
+- Automatic LED dimming during charging
+- LED behavior configurable via Home Assistant or the local web interface
 
 ### 🌐 Connectivity & Interfaces
 
 - Native **Home Assistant API** (ESPHome)
 - Built-in **web interface** for local control and diagnostics
-- **OTA firmware updates** supported
-- **Bluetooth Proxy** enabled to extend Home Assistant BLE coverage
+- **OTA firmware updates**
+- **Bluetooth Proxy** support to extend Home Assistant BLE coverage
 
 ### ⚙️ Configuration & Diagnostics
 
 User-configurable parameters include:
 
-- Maximum temperature
-- Throttle strength
+- Maximum temperature threshold
+- Thermal throttle strength
 - LED brightness during charging
 
 Built-in diagnostics expose:
@@ -116,28 +107,33 @@ Built-in diagnostics expose:
 
 A software-triggered factory reset is also available.
 
+
 ### 🔧 Advanced Usage
 
 Advanced users may modify the ESPHome YAML configuration and build custom firmware versions.  
 Custom firmware modifications are performed **at the user’s own risk**.
 
+---
+
 ## ⚠️ Safety Notice
 
-This project involves **mains voltage (110 - 230V AC)**.  
-Installation should only be performed by qualified persons.  
+This project involves **mains voltage (110–230 V AC)**.  
+Installation must be performed by qualified persons only.  
 If unsure, consult a licensed electrician.
 
 ## License
 
 ### Hardware (3D Models, Schematics, PCB Layouts)
-All hardware designs in this repository are licensed under the **Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)** license.  
-You are free to share and adapt these materials **for personal or educational use**, but **commercial use is not allowed** (e.g., manufacturing or selling).
+Hardware designs in this repository are licensed under the  
+**Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)** license.
 
-Full license text: [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/)
+You may share and adapt these materials for **personal or educational use**.  
+**Commercial manufacturing or resale is not permitted under this license.**
 
+Full license text:  
+https://creativecommons.org/licenses/by-nc/4.0/
 ### Firmware / Software
-All firmware and software in this repository is licensed under the **MIT License**, allowing you to freely use, modify, and distribute the code, including for commercial purposes.
+All firmware and software in this repository are licensed under the **MIT License**,  
+allowing use, modification, and distribution, including for commercial purposes.
 
-See the [LICENSE](./LICENSE) file for full details.
-
----
+See the [LICENSE](./LICENSE) file for details.
