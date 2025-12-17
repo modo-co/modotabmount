@@ -45,9 +45,17 @@ api:
 
 wifi:
   ap:
-on_connect:
+  on_connect:
     then:
-      - logger.log: "✅ WiFi connected - flashing LED green 5 times"
+      - logger.log: "✅ WiFi connected — stopping setup LED"
+      # Stop any running effect FIRST
+      - light.turn_off:
+          id: addressable_led
+          transition_length: 0s
+
+      - delay: 200ms
+
+      - logger.log: "💚 Flashing green LED 5 times"
       - repeat:
           count: 5
           then:
@@ -57,10 +65,18 @@ on_connect:
                 red: 0%
                 green: 100%
                 blue: 0%
+                transition_length: 0s
             - delay: 300ms
-            - light.turn_off: addressable_led
+            - light.turn_off:
+                id: addressable_led
+                transition_length: 0s
             - delay: 300ms
-      - logger.log: "Flash complete - LED off"
+
+      - logger.log: "✅ WiFi LED sequence complete — LED OFF"
+      - light.turn_off:
+          id: addressable_led
+          transition_length: 0s
+
 captive_portal:
 
 ota:
