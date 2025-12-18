@@ -25,7 +25,7 @@ The project is suitable for **makers, home automation enthusiasts, and developer
 
 ## Hardware Components
 
-![Modo Tab Mount – Exploded view](images/mtm_smart_exploded.png)
+![Modo Tab Mount – Exploded view](images/mtm_smart_exploded_full.png)
 
 | Component | Description |
 |----------|-------------|
