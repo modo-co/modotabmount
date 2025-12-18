@@ -4,7 +4,7 @@ esphome:
   name_add_mac_suffix: true
 
   # --------------------------------------------------------------------
-  # 💡 LED indication for AP setup mode (fixed for 2025.10.x)
+  # 💡 LED indication for AP setup mode
   # --------------------------------------------------------------------
   on_boot:
     priority: -100
@@ -52,8 +52,7 @@ wifi:
       - light.turn_off:
           id: addressable_led
           transition_length: 0s
-      - delay: 5s
-      
+      - delay: 1s
       - logger.log: "💚 Flashing green LED 3 times"
       - repeat:
           count: 3
