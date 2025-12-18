@@ -37,7 +37,7 @@ The project is suitable for **makers, home automation enthusiasts, and developer
 
 | Folder / File | Description |
 |--------------|-------------|
-| `PCB/` | Schematics and Gerber files for the custom PCB |
+| `PCB/` | Schematics and BOM for the custom PCB |
 | `Docs/` | Installation instructions, datasheets, and technical documentation |
 | `Images/` | Photos and diagrams |
 | `modotabmount.yaml` | ESPHome firmware configuration |
