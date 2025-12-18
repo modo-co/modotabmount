@@ -6,7 +6,7 @@
 
 ## Overview
 
-**Modo Tab Mount** is a modular smart wall mount for tablets, designed for **standard EU flush electrical back boxes**.  
+**Modo Tab Mount** is a modular smart wall mount for tablets, designed for **standard flush EU electrical wall back boxes**.  
 It combines a clean, floating design with integrated smart electronics and Home Assistant compatibility.
 
 The project is suitable for **makers, home automation enthusiasts, and developers** who want a customizable and extensible tablet mounting solution.
@@ -15,7 +15,7 @@ The project is suitable for **makers, home automation enthusiasts, and developer
 
 ![Modo Tab Mount – Front view](images/mtm_basic_front.png)
 
-- **Magnetic Docking** – Secure snap-on mounting without mechanical locks  
+- **Magnetic Docking** – Secure, strong, snap-on mounting without mechanical locks  
 - **Floating Design** – Minimal gap between tablet and wall  
 - **Integrated Smart Power Supply** – 5V output for tablet charging and peripherals  
 - **ESP32-based Controller** – Runs ESPHome firmware  
@@ -50,19 +50,19 @@ The project is suitable for **makers, home automation enthusiasts, and developer
 
 ## 📦 Firmware
 
-The **Modo Tab Mount** firmware runs on an **ESP32-C3** and is built using **ESPHome**.  
-It provides charging control, power monitoring, LED feedback, and Home Assistant integration.
+**Modo Tab Mount** firmware runs on an **ESP32-C3** and is built using **ESPHome**.  
+It provides charging control, power monitoring, Full LED RGB control with multiple built-in effects, and Home Assistant integration.
 
 - Firmware is distributed as a **precompiled binary (`.bin`)** via **GitHub Releases**
+- OTA updades with new firmware releases available
 - End users **do not need to install ESPHome or compile firmware**
-- The ESPHome YAML file is included **for reference and advanced customization**
+- ESPHome YAML file is included **for reference and advanced customization**
 
 
 ### 🔌 Smart Charging Control
 
 - PWM-regulated 5V output for controlled tablet charging  
 - Charging can be enabled or disabled remotely  
-- **Firmware-based thermal protection** with automatic throttling  
 - During prolonged charging in a confined wall box, the power supply may warm up; firmware logic reduces or pauses charging to prevent excessive temperatures  
 
 Charging state is exposed as a readable status  
@@ -72,15 +72,15 @@ Charging state is exposed as a readable status
 
 An onboard **INA219** sensor measures:
 
-- Output voltage  
-- Output current  
+- PSU Output voltage  
+- PSU Output current  
 - 30-second averaged values for stable reporting  
 
-All values are available in **Home Assistant** and via the **built-in web interface**, enabling automations based on actual power usage.
+All values are available in **Home Assistant** and via the **built-in web interface**, enabling automations.
 
 ### 💡 LED Feedback & Ambient Lighting
 
-The integrated **WS2812B LED strip** provides functional feedback and ambient lighting:
+Integrated **WS2812B LED strip** provides functional feedback and ambient lighting:
 
 - Visual indication during **Wi-Fi access-point setup mode**
 - Full RGB control with multiple built-in effects
@@ -114,16 +114,13 @@ A software-triggered factory reset is also available.
 
 ### 🔧 Advanced Usage
 
-Advanced users may modify the ESPHome YAML configuration and build custom firmware versions.  
-Custom firmware modifications are performed **at the user’s own risk**.
+Advanced users may adopt device in ESPHome Builder, change YAML configuration and build custom firmware versions. 
 
 ---
 
 ## ⚠️ Safety Notice
 
-This project involves **mains voltage (110–230 V AC)**.  
-Installation must be performed by qualified persons only.  
-If unsure, consult a licensed electrician.
+This project involves **mains voltage (110–230 V AC)**.  Installation must be performed by qualified persons only.  
 
 ## 🏷 Commercial Product Note
 
@@ -138,8 +135,6 @@ Commercial units are:
 - Placed on the market under applicable EU conformity requirements  
 
 The open-source materials in this repository are provided **for reference and non-commercial use** as defined by the applicable licenses.
-
-End users who purchase a commercial Modo Tab Mount device should refer to the **official product documentation and instructions** supplied with the device.
 
 ## License
 
