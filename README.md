@@ -2,30 +2,42 @@
 
 **Smart tablet wall mount with ESPHome firmware, magnetic docking, and configurable smart features.**
 
-![Modo Tab Mount demo](https://raw.githubusercontent.com/modo-co/modotabmount/main/images/modotabmount_animat.gif)
+![Modo Tab Mount – Wall mounted with ambient backlight](images/mtm_backlit_wall.png)
 
 ## Overview
 
 **Modo Tab Mount** is a modular smart wall mount for tablets, designed for **standard EU flush electrical back boxes**.  
-It combines a clean, floating design with integrated smart electronics and Home Assistant compatibility.
+It combines a clean, floating design with integrated smart electronics and full **Home Assistant** compatibility.
 
-The project is suitable for **makers, home automation enthusiasts, and developers** who want a customizable and extensible tablet mounting solution.
+The project is suitable for **makers, home automation enthusiasts, and developers** who want a customizable and extensible tablet mounting solution that cleanly integrates into residential or commercial spaces.
 
-## Features
+## Key Features
 
 - **Magnetic Docking** – Secure snap-on mounting without mechanical locks  
-- **Floating Design** – Minimal gap between tablet and wall  
-- **Integrated Smart Power Supply** – 5V output for tablet charging and peripherals  
+- **Floating Design** – Tablet appears to float with a minimal gap from the wall  
+- **Integrated Smart Power Supply** – 5 V output for tablet charging and peripherals  
 - **ESP32-based Controller** – Runs ESPHome firmware  
-- **Backlit LEDs** – Optional WS2812B addressable LED bracket for status or ambient light  
+- **Backlit LEDs** – Optional WS2812B addressable LED bracket for status or ambient lighting  
 - **Home Assistant Ready** – Native integration via ESPHome  
 - **Expandable** – Support for additional sensors and peripherals  
 
-## Hardware Components
+## Hardware Overview
+
+![Modo Tab Mount – Front view](images/mtm_basic_front.png)
+
+The mounting system is designed around a **magnetic coupling** between the wall-mounted base and the tablet plate, allowing easy removal while remaining securely fixed during daily use.
+
+## Internal Design & Construction
+
+![Modo Tab Mount – Exploded view](images/mtm_smart_exploded.png)
+
+The internal layout integrates power, control, and lighting components into a compact form factor suitable for standard EU wall boxes.
+
+### Hardware Components
 
 | Component | Description |
 |----------|-------------|
-| Wall Box Mount | 3D-printed (PETG + CF filament) enclosure with embedded neodymium magnets / iron ring |
+| Wall Box Mount | 3D-printed enclosure (PETG + CF filament) with embedded neodymium magnets / iron ring |
 | Tablet Plate | 3 mm solid iron plate, attached using 3M VHB tape |
 | Power Supply | Mean Well IRM-10-5 (5 V, 2 A) |
 | PCB | Custom PCB for power distribution and peripheral connections |
@@ -33,7 +45,20 @@ The project is suitable for **makers, home automation enthusiasts, and developer
 | LEDs | 2.7 mm WS2812B addressable LED strip |
 | Charging Cable | Flat FPC cable with USB-C, Lightning, or Micro-USB connector |
 
-## Repository Content
+## Smart Electronics Variant
+
+![Modo Tab Mount – Smart module installed](images/mtm_smart_2.png)
+
+The smart variant integrates a custom power-supply PCB and ESP32 controller directly into the wall box, enabling monitoring, automation, and OTA updates.
+
+## Dimensions & Compatibility
+
+![Modo Tab Mount – Dimensions](images/mtm_basic_dimmensions.png)
+
+The mount is sized to fit **standard EU flush electrical back boxes** and common tablet formats.  
+Detailed measurements are provided for reference and custom installations.
+
+## Repository Contents
 
 | Folder / File | Description |
 |--------------|-------------|
@@ -44,6 +69,8 @@ The project is suitable for **makers, home automation enthusiasts, and developer
 | `README.md` | Project overview |
 | `LICENSE` | License information |
 
+---
+
 ## 📦 Firmware
 
 The **Modo Tab Mount** firmware runs on an **ESP32-C3** and is built using **ESPHome**.  
@@ -53,13 +80,13 @@ It provides charging control, power monitoring, LED feedback, and Home Assistant
 - End users **do not need to install ESPHome or compile firmware**
 - The ESPHome YAML file is included **for reference and advanced customization**
 
-
 ### 🔌 Smart Charging Control
 
-- PWM-regulated 5V output for controlled tablet charging  
+- PWM-regulated 5 V output for controlled tablet charging  
 - Charging can be enabled or disabled remotely  
 - **Firmware-based thermal protection** with automatic throttling  
-- During prolonged charging in a confined wall box, the power supply may warm up; firmware logic reduces or pauses charging to prevent excessive temperatures  
+
+During prolonged charging in a confined wall box, the power supply may warm up; firmware logic reduces or pauses charging to prevent excessive temperatures.
 
 Charging state is exposed as a readable status  
 (e.g. *Normal*, *Thermal throttling*, *Cooling down*).
@@ -76,12 +103,12 @@ All values are available in **Home Assistant** and via the **built-in web interf
 
 ### 💡 LED Feedback & Ambient Lighting
 
-The integrated **WS2812B LED strip** provides functional feedback and ambient lighting:
+The integrated **WS2812B LED strip** provides both functional feedback and ambient lighting:
 
 - Visual indication during **Wi-Fi access-point setup mode**
 - Full RGB control with multiple built-in effects
 - Automatic LED dimming during charging
-- LED behavior configurable via Home Assistant or the local web interface
+- Behavior configurable via Home Assistant or the local web interface
 
 ### 🌐 Connectivity & Interfaces
 
@@ -107,7 +134,6 @@ Built-in diagnostics expose:
 
 A software-triggered factory reset is also available.
 
-
 ### 🔧 Advanced Usage
 
 Advanced users may modify the ESPHome YAML configuration and build custom firmware versions.  
@@ -125,7 +151,7 @@ If unsure, consult a licensed electrician.
 
 This repository documents the **Modo Tab Mount project** and provides reference designs, firmware, and documentation intended for **makers and developers**.
 
-A **commercially assembled Modo Tab Mount device**  offered separately by **MB Modoco**.  
+A **commercially assembled Modo Tab Mount device** is offered separately by **MB Modoco**.  
 Commercial units are:
 
 - Assembled and tested by the manufacturer  
@@ -140,6 +166,7 @@ End users who purchase a commercial Modo Tab Mount device should refer to the **
 ## License
 
 ### Hardware (3D Models, Schematics, PCB Layouts)
+
 Hardware designs in this repository are licensed under the  
 **Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)** license.
 
@@ -148,7 +175,9 @@ You may share and adapt these materials for **personal or educational use**.
 
 Full license text:  
 https://creativecommons.org/licenses/by-nc/4.0/
+
 ### Firmware / Software
+
 All firmware and software in this repository are licensed under the **MIT License**,  
 allowing use, modification, and distribution, including for commercial purposes.
 
