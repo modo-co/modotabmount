@@ -2,7 +2,7 @@
 
 **Smart tablet wall mount with ESPHome firmware, magnetic docking, and configurable smart features.**
 
-![Modo Tab Mount demo](https://raw.githubusercontent.com/modo-co/modotabmount/main/images/modotabmount_animat.gif)
+![Modo Tab Mount – Wall mounted with ambient backlight](images/mtm_backlit_wall.png)
 
 ## Overview
 
@@ -13,6 +13,8 @@ The project is suitable for **makers, home automation enthusiasts, and developer
 
 ## Features
 
+![Modo Tab Mount – Front view](images/mtm_basic_front.png)
+
 - **Magnetic Docking** – Secure snap-on mounting without mechanical locks  
 - **Floating Design** – Minimal gap between tablet and wall  
 - **Integrated Smart Power Supply** – 5V output for tablet charging and peripherals  
@@ -22,6 +24,8 @@ The project is suitable for **makers, home automation enthusiasts, and developer
 - **Expandable** – Support for additional sensors and peripherals  
 
 ## Hardware Components
+
+![Modo Tab Mount – Exploded view](images/mtm_smart_exploded.png)
 
 | Component | Description |
 |----------|-------------|
