@@ -52,12 +52,11 @@ wifi:
       - light.turn_off:
           id: addressable_led
           transition_length: 0s
-
-      - delay: 200ms
-
-      - logger.log: "💚 Flashing green LED 5 times"
+      - delay: 5s
+      
+      - logger.log: "💚 Flashing green LED 3 times"
       - repeat:
-          count: 5
+          count: 3
           then:
             - light.turn_on:
                 id: addressable_led
