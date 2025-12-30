@@ -188,6 +188,10 @@ light:
           name: Pulse
           transition_length: 1200ms
           update_interval: 1200ms
+      - pulse:
+          name: Pulse Fast
+          transition_length: 300ms
+          update_interval: 300ms
       - random:
           name: Random Colors
       - addressable_color_wipe:
