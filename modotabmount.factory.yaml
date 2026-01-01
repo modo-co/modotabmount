@@ -8,7 +8,7 @@ esphome:
   # configuration and updates.
   project:
     name: modoco.modotabmount
-    version: "1.0.1"
+    version: "1.0.2"
 
 # This should point to the public location of the yaml file that will be adopted.
 # In this case it is the core yaml file that does not contain the extra things
