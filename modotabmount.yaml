@@ -252,10 +252,10 @@ text_sensor:
       sorting_weight: 3
 
   - platform: debug
+    device:
+      name: "Device Info"
     reset_reason:
       name: "Device Reset Reason"
-    web_server:
-      sorting_weight: 35
 
 # --------------------------------------------------------------------
 # 🔌 Sensors
