@@ -254,7 +254,6 @@ text_sensor:
   - platform: debug
     reset_reason:
       name: "Device Reset Reason"
-    entity_category: diagnostic
     web_server:
       sorting_weight: 35
 
