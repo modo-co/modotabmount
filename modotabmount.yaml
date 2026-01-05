@@ -478,7 +478,7 @@ button:
 # 🧠 Main logic
 # --------------------------------------------------------------------
 interval:
-  - interval: 1s
+  - interval: 3s
     then:
       - lambda: |-
           float temp = id(esp32_internal_temp).state;
@@ -489,7 +489,7 @@ interval:
           float limit_ratio = id(charging_limit_level).state / 100.0f;
           float throttle = id(throttle_ratio).state;
           float level = limit_ratio;
-          std::string status = "Normal";
+          const char* status = "Normal";
 
           if (!charging_on) {
             level = 0.0f;
