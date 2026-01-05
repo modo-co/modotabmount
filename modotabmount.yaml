@@ -251,6 +251,13 @@ text_sensor:
     web_server:
       sorting_weight: 3
 
+  - platform: debug
+    reset_reason:
+      name: "Device Reset Reason"
+    entity_category: diagnostic
+    web_server:
+      sorting_weight: 35
+
 # --------------------------------------------------------------------
 # 🔌 Sensors
 # --------------------------------------------------------------------
