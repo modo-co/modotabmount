@@ -254,6 +254,7 @@ text_sensor:
   - platform: debug
     device:
       name: "Device Info"
+      disabled_by_default: true
     reset_reason:
       name: "Device Reset Reason"
 
