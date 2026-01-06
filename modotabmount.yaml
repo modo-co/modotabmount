@@ -141,8 +141,6 @@ switch:
     name: "Tablet Charging"
     icon: "mdi:tablet-cellphone"
     optimistic: true
-    web_server:
-      sorting_weight: 1
 
 light:
   - platform: esp32_rmt_led_strip
@@ -154,8 +152,6 @@ light:
     num_leds: 64
     rgb_order: GRB
     default_transition_length: 1s
-    web_server:
-      sorting_weight: 2
     effects:
       - addressable_rainbow:
           name: Rainbow
@@ -248,8 +244,6 @@ text_sensor:
     id: charging_status
     icon: "mdi:lightning-bolt-outline"
     update_interval: never
-    web_server:
-      sorting_weight: 3
 
   - platform: debug
     device:
@@ -273,8 +267,6 @@ sensor:
     lambda: |-
       return 0.0;
     update_interval: never
-    web_server:
-      sorting_weight: 4
 
   - platform: template
     name: "Bus Voltage Inst."
@@ -287,8 +279,6 @@ sensor:
       return 0.0;
     update_interval: never
     disabled_by_default: true
-    web_server:
-      sorting_weight: 5
 
   - platform: template
     name: "Current"
@@ -301,8 +291,6 @@ sensor:
     lambda: |-
       return 0.0;
     update_interval: never
-    web_server:
-      sorting_weight: 6
 
   - platform: template
     name: "Output Current Inst."
@@ -315,8 +303,6 @@ sensor:
       return 0.0;
     update_interval: never
     disabled_by_default: true
-    web_server:
-      sorting_weight: 7
 
   - platform: template
     name: "Power"
@@ -329,8 +315,6 @@ sensor:
     lambda: |-
       return 0.0;
     update_interval: never
-    web_server:
-      sorting_weight: 8
 
   - platform: template
     name: "Output Power Inst."
@@ -343,8 +327,6 @@ sensor:
       return 0.0;
     update_interval: never
     disabled_by_default: true
-    web_server:
-      sorting_weight: 9
 
   - platform: ina219
     address: 0x40
@@ -367,41 +349,29 @@ sensor:
     update_interval: 15s
     icon: "mdi:thermometer-lines"
     entity_category: diagnostic
-    web_server:
-      sorting_weight: 20
 
   - platform: uptime
     name: "Uptime"
     type: seconds
     icon: "mdi:clock-outline"
     entity_category: diagnostic
-    web_server:
-      sorting_weight: 21
 
   - platform: wifi_signal
     name: "WiFi Signal"
     update_interval: 60s
     icon: "mdi:wifi"
     entity_category: diagnostic
-    web_server:
-      sorting_weight: 22
 
   - platform: debug
     free:
       name: "Heap Free"
       icon: "mdi:memory"
-      web_server:
-        sorting_weight: 23
     block:
       name: "Heap Max Block"
       icon: "mdi:memory"
-      web_server:
-        sorting_weight: 24
     loop_time:
       name: "Loop Time"
       icon: "mdi:timer-outline"
-      web_server:
-        sorting_weight: 25
 
 # --------------------------------------------------------------------
 # ⚙️ Configuration
@@ -419,8 +389,6 @@ number:
     unit_of_measurement: "%"
     icon: "mdi:lightning-bolt"
     entity_category: config
-    web_server:
-      sorting_weight: 30
 
   - platform: template
     name: "Max ESP32 Temp."
@@ -434,8 +402,6 @@ number:
     unit_of_measurement: "°C"
     icon: "mdi:thermometer"
     entity_category: config
-    web_server:
-      sorting_weight: 31
 
   - platform: template
     name: "Thermal Throttle Ratio"
@@ -449,8 +415,6 @@ number:
     unit_of_measurement: "ratio"
     icon: "mdi:flash-outline"
     entity_category: config
-    web_server:
-      sorting_weight: 32
 
   - platform: template
     name: "Charging LED Dim Level"
@@ -464,16 +428,12 @@ number:
     unit_of_measurement: "%"
     icon: "mdi:brightness-6"
     entity_category: config
-    web_server:
-      sorting_weight: 33
 
 button:
   - platform: restart
     name: "Restart Device"
     icon: "mdi:restart"
     entity_category: config
-    web_server:
-      sorting_weight: 34
 
 # --------------------------------------------------------------------
 # 🧠 Main logic
