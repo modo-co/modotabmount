@@ -167,20 +167,20 @@ light:
       - addressable_color_wipe:
           name: Color Wipe Reverse
           reverse: true
-      #- addressable_twinkle:
-      #    name: Twinkle
-      #    twinkle_probability: 5%
-      #    progress_interval: 4ms
+      - addressable_twinkle:
+          name: Twinkle
+          twinkle_probability: 5%
+          progress_interval: 4ms
       - addressable_random_twinkle:
           name: Random Twinkle
       - addressable_scan:
           name: Scanner
           move_interval: 50ms
-      #- addressable_fireworks:
-      #    name: Fireworks
-      #    update_interval: 32ms
-      #    spark_probability: 10%
-      #    fade_out_rate: 120
+      - addressable_fireworks:
+          name: Fireworks
+          update_interval: 32ms
+          spark_probability: 10%
+          fade_out_rate: 120
       - addressable_flicker:
           name: Flicker
           intensity: 5%
@@ -525,35 +525,30 @@ interval:
           id(tablet_pwm).set_level(level);
           id(charging_status).publish_state(status);
 
-// -------------------------------
-// LED dimming with restore
-// -------------------------------
-static bool was_charging = false;
-static float saved_brightness = 1.0f;
-
-auto led = id(addressable_led);
-bool charging = charging_on;
-
-// Only act if LED is ON
-if (led->current_values.is_on()) {
-
-  // Charging just started → save & dim ONCE
-  if (charging && !was_charging) {
-    saved_brightness = led->current_values.get_brightness();
-    auto call = led->turn_on();
-    call.set_brightness(id(led_dim_level).state / 100.0f);
-    call.perform();
-  }
-
-  // Charging just stopped → restore ONCE
-  if (!charging && was_charging) {
-    auto call = led->turn_on();
-    call.set_brightness(saved_brightness);
-    call.perform();
-  }
-}
-
-was_charging = charging;
+          // LED dimming control
+          auto led = id(addressable_led);
+          float dim_level = id(led_dim_level).state / 100.0f;
+          if (charging_on && led->current_values.is_on()) {
+            float current_brightness = led->current_values.get_brightness();
+            if (current_brightness > dim_level + 0.01f) {
+              id(prev_led_brightness) = current_brightness;
+              id(led_dimmed_by_charge) = true;
+              auto call = led->turn_on();
+              call.set_transition_length(1000);
+              call.set_brightness(dim_level);
+              call.perform();
+            } else {
+              id(led_dimmed_by_charge) = false;
+            }
+          } else if (!charging_on && led->current_values.is_on()) {
+            if (id(led_dimmed_by_charge)) {
+              auto call = led->turn_on();
+              call.set_transition_length(1000);
+              call.set_brightness(id(prev_led_brightness));
+              call.perform();
+              id(led_dimmed_by_charge) = false;
+            }
+          }
 
           // 30s averaging
           id(power_act).publish_state(id(ina_power).state);
