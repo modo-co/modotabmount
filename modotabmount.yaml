@@ -111,20 +111,40 @@ switch:
   - platform: template
     id: tablet_charging
     name: "Tablet Charging"
-    icon: mdi:tablet-cellphone
     optimistic: true
+
+    on_turn_on:
+      then:
+        - lambda: |-
+            // Apply clamp immediately if LED is already ON
+            if (id(led_mode) != 0) return;
+            if (!id(addressable_led).current_values.is_on()) return;
+
+            float allowed = id(led_dim_level).state / 100.0f;
+            float current = id(addressable_led).current_values.get_brightness();
+
+            if (current > allowed + 0.01f) {
+              id(prev_led_brightness) = current;
+              id(led_clamp_active) = true;
+
+              auto call = id(addressable_led).turn_on();
+              call.set_brightness(allowed);
+              call.perform();
+            }
 
     on_turn_off:
       then:
         - lambda: |-
             if (!id(led_clamp_active)) return;
-            if (!id(addressable_led).current_values.is_on()) return;
 
-            auto call = id(addressable_led).turn_on();
-            call.set_brightness(id(prev_led_brightness));
-            call.perform();
+            if (id(addressable_led).current_values.is_on()) {
+              auto call = id(addressable_led).turn_on();
+              call.set_brightness(id(prev_led_brightness));
+              call.perform();
+            }
 
             id(led_clamp_active) = false;
+
 
 # --------------------------------------------------------------------
 # Addressable LED
@@ -145,6 +165,8 @@ light:
         - lambda: |-
             // System-owned LEDs must not be touched
             if (id(led_mode) != 0) return;
+
+            // Only clamp when charging is active
             if (!id(tablet_charging).state) return;
 
             float allowed = id(led_dim_level).state / 100.0f;
@@ -152,15 +174,19 @@ light:
 
             // Clamp only if exceeding allowed brightness
             if (current > allowed + 0.01f) {
+
+              // Save user intent ONCE
               if (!id(led_clamp_active)) {
                 id(prev_led_brightness) = current;
                 id(led_clamp_active) = true;
               }
 
+              // Apply clamp (no transition)
               auto call = id(addressable_led).turn_on();
               call.set_brightness(allowed);
               call.perform();
             }
+
 
     effects:
       - addressable_scan:
