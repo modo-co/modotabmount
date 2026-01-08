@@ -65,7 +65,7 @@ i2c:
   scan: true
 
 # --------------------------------------------------------------------
-# Globals (keep 1.0.3 + agreed LED clamp state)
+# Globals
 # --------------------------------------------------------------------
 globals:
   - id: prev_led_brightness
@@ -132,12 +132,12 @@ switch:
     icon: "mdi:tablet-cellphone"
     optimistic: true
 
-    # agreed: apply clamp immediately if LED already on
+    # apply clamp immediately if LED already on
     on_turn_on:
       then:
         - script.execute: led_apply_clamp
 
-    # agreed: restore user brightness when charging turns off
+    # restore user brightness when charging turns off
     on_turn_off:
       then:
         - lambda: |-
@@ -152,8 +152,7 @@ switch:
             id(led_clamp_active) = false;
 
 # --------------------------------------------------------------------
-# Addressable LED (effects restored exactly from 1.0.3)
-# Only agreed change here: on_turn_on calls script + transition set to 0s
+# Addressable LED
 # --------------------------------------------------------------------
 light:
   - platform: esp32_rmt_led_strip
@@ -166,7 +165,7 @@ light:
     rgb_order: GRB
     default_transition_length: 0s
 
-    # agreed: event-driven clamp, panic-safe (script executes outside callback)
+    # event-driven clamp, panic-safe (script executes outside callback)
     on_turn_on:
       then:
         - script.execute: led_apply_clamp
@@ -261,7 +260,7 @@ light:
 # LED system scripts (AP + WiFi feedback + clamp)
 # --------------------------------------------------------------------
 script:
-  # agreed: clamp script (stores user brightness once, clamps while charging)
+  # clamp script (stores user brightness once, clamps while charging)
   - id: led_apply_clamp
     mode: restart
     then:
@@ -331,7 +330,7 @@ script:
       - lambda: 'id(led_mode) = 0;'
 
 # --------------------------------------------------------------------
-# Text sensors (RESTORED exactly from 1.0.3)
+# Text sensors
 # --------------------------------------------------------------------
 text_sensor:
   - platform: template
@@ -348,7 +347,7 @@ text_sensor:
       name: "Device Reset Reason"
 
 # --------------------------------------------------------------------
-# Sensors (RESTORED exactly from 1.0.3)
+# Sensors
 # --------------------------------------------------------------------
 sensor:
   - platform: template
@@ -469,7 +468,7 @@ sensor:
       icon: "mdi:timer-outline"
 
 # --------------------------------------------------------------------
-# ⚙️ Configuration (RESTORED: optimistic flags)
+# ⚙️ Configuration
 # --------------------------------------------------------------------
 number:
   - platform: template
@@ -531,8 +530,7 @@ button:
     entity_category: config
 
 # --------------------------------------------------------------------
-# 🧠 Main logic — THERMAL + STATUS + AVERAGING (from 1.0.3)
-# Only change: LED dimming loop removed (replaced by event-driven clamp)
+# THERMAL + STATUS + AVERAGING
 # --------------------------------------------------------------------
 interval:
   - interval: 3s
@@ -598,7 +596,7 @@ interval:
           }
 
 # --------------------------------------------------------------------
-# Helpers (RESTORED)
+# Helpers
 # --------------------------------------------------------------------
 binary_sensor:
   - platform: template
