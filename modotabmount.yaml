@@ -16,9 +16,12 @@ esphome:
 
 esp32:
   board: esp32-c3-devkitm-1
+  variant: esp32c3
   framework:
     type: esp-idf
-  variant: esp32c3
+    sdkconfig_options:
+      CONFIG_ESP_MAIN_TASK_STACK_SIZE: "8192"
+      CONFIG_ESP_SYSTEM_EVENT_TASK_STACK_SIZE: "4096"
 
 logger:
 
@@ -40,6 +43,13 @@ captive_portal:
 
 ota:
   - platform: esphome
+    on_begin:
+      then:
+        - lambda: 'id(led_mode) = 99;'
+        - light.turn_off: addressable_led
+    on_end:
+      then:
+        - lambda: 'id(led_mode) = 0;'
 
 web_server:
   port: 80
@@ -61,38 +71,30 @@ globals:
   - id: led_mode
     type: int
     initial_value: '0'
-    # 0 = user
-    # 1 = ap_mode
-    # 2 = wifi_feedback
+    # 0=user, 1=ap, 2=wifi, 99=ota
 
   - id: prev_led_brightness
     type: float
-    restore_value: no
     initial_value: '1.0'
 
   - id: led_clamp_active
     type: bool
-    restore_value: no
     initial_value: 'false'
 
   - id: power_accum
     type: float
-    restore_value: no
     initial_value: '0.0'
 
   - id: current_accum
     type: float
-    restore_value: no
     initial_value: '0.0'
 
   - id: voltage_accum
     type: float
-    restore_value: no
     initial_value: '0.0'
 
   - id: sample_count
     type: int
-    restore_value: no
     initial_value: '0'
 
 # --------------------------------------------------------------------
@@ -115,45 +117,27 @@ switch:
 
     on_turn_on:
       then:
-        - lambda: |-
-            // Apply clamp immediately if LED is already ON
-            if (id(led_mode) != 0) return;
-            if (!id(addressable_led).current_values.is_on()) return;
-
-            float allowed = id(led_dim_level).state / 100.0f;
-            float current = id(addressable_led).current_values.get_brightness();
-
-            if (current > allowed + 0.01f) {
-              id(prev_led_brightness) = current;
-              id(led_clamp_active) = true;
-
-              auto call = id(addressable_led).turn_on();
-              call.set_brightness(allowed);
-              call.perform();
-            }
+        - script.execute: led_apply_clamp
 
     on_turn_off:
       then:
         - lambda: |-
             if (!id(led_clamp_active)) return;
-
             if (id(addressable_led).current_values.is_on()) {
               auto call = id(addressable_led).turn_on();
               call.set_brightness(id(prev_led_brightness));
               call.perform();
             }
-
             id(led_clamp_active) = false;
 
-
 # --------------------------------------------------------------------
-# Addressable LED
+# LED strip
 # --------------------------------------------------------------------
 light:
   - platform: esp32_rmt_led_strip
     id: addressable_led
     name: "LED"
-    icon: mdi:television-ambient-light
+    icon: "mdi:television-ambient-light"
     chipset: WS2812
     pin: GPIO5
     num_leds: 64
@@ -162,30 +146,7 @@ light:
 
     on_turn_on:
       then:
-        - lambda: |-
-            // System-owned LEDs must not be touched
-            if (id(led_mode) != 0) return;
-
-            // Only clamp when charging is active
-            if (!id(tablet_charging).state) return;
-
-            float allowed = id(led_dim_level).state / 100.0f;
-            float current = id(addressable_led).current_values.get_brightness();
-
-            // Clamp only if exceeding allowed brightness
-            if (current > allowed + 0.01f) {
-
-              // Save user intent ONCE
-              if (!id(led_clamp_active)) {
-                id(prev_led_brightness) = current;
-                id(led_clamp_active) = true;
-              }
-
-              // Apply clamp (no transition)
-              auto call = id(addressable_led).turn_on();
-              call.set_brightness(allowed);
-              call.perform();
-            }
+        - script.execute: led_apply_clamp
 
     effects:
       - addressable_rainbow:
@@ -218,7 +179,7 @@ light:
       - pulse:
           name: Pulse
           transition_length: 1200ms
-          update_interval: 1200ms  
+          update_interval: 1200ms
       - pulse:
           name: Pulse Fast
           transition_length: 600ms
@@ -274,9 +235,31 @@ light:
           fade_out_rate: 160
 
 # --------------------------------------------------------------------
-# LED system scripts
+# LED clamp script
 # --------------------------------------------------------------------
 script:
+  - id: led_apply_clamp
+    mode: restart
+    then:
+      - lambda: |-
+          if (id(led_mode) != 0) return;
+          if (!id(tablet_charging).state) return;
+          if (!id(addressable_led).current_values.is_on()) return;
+
+          float allowed = id(led_dim_level).state / 100.0f;
+          float current = id(addressable_led).current_values.get_brightness();
+
+          if (current <= allowed + 0.01f) return;
+
+          if (!id(led_clamp_active)) {
+            id(prev_led_brightness) = current;
+            id(led_clamp_active) = true;
+          }
+
+          auto call = id(addressable_led).turn_on();
+          call.set_brightness(allowed);
+          call.perform();
+
   - id: led_ap_mode
     mode: restart
     then:
@@ -319,9 +302,73 @@ script:
       - lambda: 'id(led_mode) = 0;'
 
 # --------------------------------------------------------------------
+# Text sensors
+# --------------------------------------------------------------------
+text_sensor:
+  - platform: template
+    name: "Charging Status"
+    id: charging_status
+    update_interval: never
+
+  - platform: debug
+    device:
+      name: "Device Info"
+      disabled_by_default: true
+    reset_reason:
+      name: "Device Reset Reason"
+
+# --------------------------------------------------------------------
 # Sensors
 # --------------------------------------------------------------------
 sensor:
+  - platform: template
+    name: "Bus Voltage"
+    id: avg_voltage
+    unit_of_measurement: V
+    accuracy_decimals: 2
+    update_interval: never
+    lambda: return 0.0;
+
+  - platform: template
+    name: "Current"
+    id: avg_current
+    unit_of_measurement: A
+    accuracy_decimals: 3
+    update_interval: never
+    lambda: return 0.0;
+
+  - platform: template
+    name: "Power"
+    id: avg_power
+    unit_of_measurement: W
+    accuracy_decimals: 2
+    update_interval: never
+    lambda: return 0.0;
+
+  - platform: template
+    name: "Bus Voltage Inst."
+    id: voltage_act
+    unit_of_measurement: V
+    update_interval: never
+    disabled_by_default: true
+    lambda: return 0.0;
+
+  - platform: template
+    name: "Output Current Inst."
+    id: current_act
+    unit_of_measurement: A
+    update_interval: never
+    disabled_by_default: true
+    lambda: return 0.0;
+
+  - platform: template
+    name: "Output Power Inst."
+    id: power_act
+    unit_of_measurement: W
+    update_interval: never
+    disabled_by_default: true
+    lambda: return 0.0;
+
   - platform: ina219
     address: 0x40
     shunt_resistance: 0.1 ohm
@@ -337,9 +384,34 @@ sensor:
     update_interval: 1s
 
   - platform: internal_temperature
-    id: esp32_internal_temp
     name: "ESP32 Internal Temp"
+    id: esp32_internal_temp
     update_interval: 15s
+
+  - platform: uptime
+    name: "Uptime"
+    type: seconds
+
+  - platform: wifi_signal
+    name: "WiFi Signal"
+    update_interval: 60s
+
+  - platform: debug
+    free:
+      name: "Heap Free"
+    block:
+      name: "Heap Max Block"
+    loop_time:
+      name: "Loop Time"
+
+# --------------------------------------------------------------------
+# Binary sensor
+# --------------------------------------------------------------------
+binary_sensor:
+  - platform: template
+    id: led_power_low
+    internal: true
+    lambda: return id(ina_power).state < 7.5;
 
 # --------------------------------------------------------------------
 # Configuration numbers
@@ -386,7 +458,7 @@ number:
     initial_value: 0.9
 
 # --------------------------------------------------------------------
-# 🧠 Main logic — THERMAL / PWM ONLY (unchanged)
+# Thermal / PWM logic
 # --------------------------------------------------------------------
 interval:
   - interval: 3s
@@ -403,13 +475,9 @@ interval:
           float throttle = id(throttle_ratio).state;
           float level = limit_ratio;
 
-          if (!charging_on) {
-            level = 0.0f;
-          } else if (temp >= max_temp_val + 3.0f) {
-            cooling = true;
-          } else if (cooling && temp <= (max_temp_val - 3.0f)) {
-            cooling = false;
-          }
+          if (!charging_on) level = 0.0f;
+          else if (temp >= max_temp_val + 3.0f) cooling = true;
+          else if (cooling && temp <= max_temp_val - 3.0f) cooling = false;
 
           if (charging_on && !cooling) {
             if (temp >= max_temp_val + 2.0f) {
@@ -418,7 +486,7 @@ interval:
             } else if (temp >= max_temp_val) {
               if (burst_phase < 3) level = throttle;
               burst_phase = (burst_phase + 1) % 5;
-            } else if (temp >= (max_temp_val - 3.0f)) {
+            } else if (temp >= max_temp_val - 3.0f) {
               if (burst_phase < 2) level = throttle;
               burst_phase = (burst_phase + 1) % 5;
             } else {
