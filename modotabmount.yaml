@@ -3,9 +3,6 @@ esphome:
   friendly_name: Modo Tab Mount
   name_add_mac_suffix: true
 
-  # --------------------------------------------------------------------
-  # 💡 LED indication for AP setup mode
-  # --------------------------------------------------------------------
   on_boot:
     priority: -100
     then:
@@ -15,17 +12,7 @@ esphome:
               return !wifi::global_wifi_component->is_connected() &&
                      wifi::global_wifi_component->has_ap();
           then:
-            - logger.log: "📶 Access Point active — enabling setup LED Scanner effect"
-            - light.turn_on:
-                id: addressable_led
-                effect: "Scanner"
-                brightness: 100%
-                red: 0%
-                green: 0%
-                blue: 100%
-          else:
-            - logger.log: "✅ Wi-Fi connected — disabling setup LED"
-            - light.turn_off: addressable_led
+            - script.execute: led_ap_mode
 
 esp32:
   board: esp32-c3-devkitm-1
@@ -33,7 +20,6 @@ esp32:
     type: esp-idf
   variant: esp32c3
 
-# Lighter logging to save RAM
 logger:
 
 debug:
@@ -47,33 +33,8 @@ wifi:
   ap:
   on_connect:
     then:
-      - logger.log: "✅ WiFi connected — stopping setup LED"
-      # Stop any running effect FIRST
-      - light.turn_off:
-          id: addressable_led
-          transition_length: 0s
-      - delay: 1s
-      - logger.log: "💚 Flashing green LED 3 times"
-      - repeat:
-          count: 3
-          then:
-            - light.turn_on:
-                id: addressable_led
-                brightness: 100%
-                red: 0%
-                green: 100%
-                blue: 0%
-                transition_length: 0s
-            - delay: 300ms
-            - light.turn_off:
-                id: addressable_led
-                transition_length: 0s
-            - delay: 300ms
-
-      - logger.log: "✅ WiFi LED sequence complete — LED OFF"
-      - light.turn_off:
-          id: addressable_led
-          transition_length: 0s
+      - script.execute: led_ap_mode_stop
+      - script.execute: led_wifi_connected
 
 captive_portal:
 
@@ -93,35 +54,46 @@ i2c:
   scl: 21
   scan: true
 
+# --------------------------------------------------------------------
+# Globals
+# --------------------------------------------------------------------
 globals:
+  - id: led_mode
+    type: int
+    initial_value: '0'
+    # 0 = user
+    # 1 = ap_mode
+    # 2 = wifi_feedback
+
   - id: prev_led_brightness
     type: float
     restore_value: no
     initial_value: '1.0'
-  - id: last_charging_state
+
+  - id: led_clamp_active
     type: bool
     restore_value: no
     initial_value: 'false'
+
   - id: power_accum
     type: float
     restore_value: no
     initial_value: '0.0'
+
   - id: current_accum
     type: float
     restore_value: no
     initial_value: '0.0'
+
   - id: voltage_accum
     type: float
     restore_value: no
     initial_value: '0.0'
+
   - id: sample_count
     type: int
     restore_value: no
     initial_value: '0'
-  - id: led_dimmed_by_charge
-    type: bool
-    restore_value: no
-    initial_value: 'false'
 
 # --------------------------------------------------------------------
 # PWM output
@@ -133,201 +105,131 @@ output:
     frequency: 1000 Hz
 
 # --------------------------------------------------------------------
-# ⚡ Sensor and Control
+# Charging switch
 # --------------------------------------------------------------------
 switch:
   - platform: template
     id: tablet_charging
     name: "Tablet Charging"
-    icon: "mdi:tablet-cellphone"
+    icon: mdi:tablet-cellphone
     optimistic: true
 
+    on_turn_off:
+      then:
+        - lambda: |-
+            if (!id(led_clamp_active)) return;
+            if (!id(addressable_led).current_values.is_on()) return;
+
+            auto call = id(addressable_led).turn_on();
+            call.set_brightness(id(prev_led_brightness));
+            call.perform();
+
+            id(led_clamp_active) = false;
+
+# --------------------------------------------------------------------
+# Addressable LED
+# --------------------------------------------------------------------
 light:
   - platform: esp32_rmt_led_strip
     id: addressable_led
     name: "LED"
-    icon: "mdi:television-ambient-light"
+    icon: mdi:television-ambient-light
     chipset: WS2812
     pin: GPIO5
     num_leds: 64
     rgb_order: GRB
-    default_transition_length: 1s
+    default_transition_length: 0s
+
+    on_turn_on:
+      then:
+        - lambda: |-
+            // System-owned LEDs must not be touched
+            if (id(led_mode) != 0) return;
+            if (!id(tablet_charging).state) return;
+
+            float allowed = id(led_dim_level).state / 100.0f;
+            float current = id(addressable_led).current_values.get_brightness();
+
+            // Clamp only if exceeding allowed brightness
+            if (current > allowed + 0.01f) {
+              if (!id(led_clamp_active)) {
+                id(prev_led_brightness) = current;
+                id(led_clamp_active) = true;
+              }
+
+              auto call = id(addressable_led).turn_on();
+              call.set_brightness(allowed);
+              call.perform();
+            }
+
     effects:
+      - addressable_scan:
+          name: Scanner
+          move_interval: 50ms
       - addressable_rainbow:
           name: Rainbow
       - addressable_rainbow:
           name: Rainbow Fast
           speed: 10
-      - addressable_color_wipe:
-          name: Color Wipe
-      - addressable_color_wipe:
-          name: Color Wipe Reverse
-          reverse: true
       - addressable_twinkle:
           name: Twinkle
           twinkle_probability: 5%
           progress_interval: 4ms
-      - addressable_random_twinkle:
-          name: Random Twinkle
-      - addressable_scan:
-          name: Scanner
-          move_interval: 50ms
       - addressable_fireworks:
           name: Fireworks
           update_interval: 32ms
           spark_probability: 10%
           fade_out_rate: 120
-      - addressable_flicker:
-          name: Flicker
-          intensity: 5%
-      - pulse:
-          name: Pulse
-          transition_length: 1200ms
-          update_interval: 1200ms  
-      - pulse:
-          name: Pulse Fast
-          transition_length: 600ms
-          update_interval: 600ms
-      - random:
-          name: Random Colors
-      - addressable_color_wipe:
-          name: Dual Color Wipe
-          colors:
-            - red: 100%
-              green: 0%
-              blue: 0%
-              num_leds: 32
-            - red: 0%
-              green: 0%
-              blue: 100%
-              num_leds: 32
-      - addressable_color_wipe:
-          name: Soft White Sweep
-          colors:
-            - red: 100%
-              green: 70%
-              blue: 45%
-              num_leds: 32
-            - red: 20%
-              green: 10%
-              blue: 5%
-              num_leds: 32
-      - addressable_flicker:
-          name: Candle Light
-          intensity: 8%
-      - addressable_fireworks:
-          name: Fireplace
-          update_interval: 64ms
-          spark_probability: 3%
-          fade_out_rate: 90
-      - addressable_rainbow:
-          name: Party Rainbow
-          speed: 5
-      - addressable_twinkle:
-          name: Celebration Twinkle
-          twinkle_probability: 15%
-          progress_interval: 2ms
-      - addressable_scan:
-          name: Energy Beam
-          move_interval: 20ms
-      - addressable_random_twinkle:
-          name: Galaxy
-      - addressable_fireworks:
-          name: Spark Storm
-          update_interval: 16ms
-          spark_probability: 20%
-          fade_out_rate: 160
-
-text_sensor:
-  - platform: template
-    name: "Charging Status"
-    id: charging_status
-    icon: "mdi:lightning-bolt-outline"
-    update_interval: never
-
-  - platform: debug
-    device:
-      name: "Device Info"
-      disabled_by_default: true
-    reset_reason:
-      name: "Device Reset Reason"
 
 # --------------------------------------------------------------------
-# 🔌 Sensors
+# LED system scripts
+# --------------------------------------------------------------------
+script:
+  - id: led_ap_mode
+    mode: restart
+    then:
+      - lambda: 'id(led_mode) = 1;'
+      - light.turn_on:
+          id: addressable_led
+          effect: "Scanner"
+          brightness: 100%
+          red: 0%
+          green: 0%
+          blue: 100%
+
+  - id: led_ap_mode_stop
+    then:
+      - if:
+          condition:
+            lambda: 'return id(led_mode) == 1;'
+          then:
+            - light.turn_off: addressable_led
+            - lambda: 'id(led_mode) = 0;'
+
+  - id: led_wifi_connected
+    mode: restart
+    then:
+      - lambda: 'id(led_mode) = 2;'
+      - light.turn_off: addressable_led
+      - delay: 150ms
+      - repeat:
+          count: 3
+          then:
+            - light.turn_on:
+                id: addressable_led
+                brightness: 100%
+                red: 0%
+                green: 100%
+                blue: 0%
+            - delay: 250ms
+            - light.turn_off: addressable_led
+            - delay: 250ms
+      - lambda: 'id(led_mode) = 0;'
+
+# --------------------------------------------------------------------
+# Sensors
 # --------------------------------------------------------------------
 sensor:
-  - platform: template
-    name: "Bus Voltage"
-    id: avg_voltage
-    unit_of_measurement: "V"
-    accuracy_decimals: 2
-    icon: "mdi:flash"
-    device_class: voltage
-    state_class: measurement
-    lambda: |-
-      return 0.0;
-    update_interval: never
-
-  - platform: template
-    name: "Bus Voltage Inst."
-    id: voltage_act
-    unit_of_measurement: "V"
-    icon: "mdi:flash-triangle-outline"
-    device_class: voltage
-    state_class: measurement
-    lambda: |-
-      return 0.0;
-    update_interval: never
-    disabled_by_default: true
-
-  - platform: template
-    name: "Current"
-    id: avg_current
-    unit_of_measurement: "A"
-    accuracy_decimals: 3
-    icon: "mdi:current-ac"
-    device_class: current
-    state_class: measurement
-    lambda: |-
-      return 0.0;
-    update_interval: never
-
-  - platform: template
-    name: "Output Current Inst."
-    id: current_act
-    unit_of_measurement: "A"
-    icon: "mdi:current-dc"
-    device_class: current
-    state_class: measurement
-    lambda: |-
-      return 0.0;
-    update_interval: never
-    disabled_by_default: true
-
-  - platform: template
-    name: "Power"
-    id: avg_power
-    unit_of_measurement: "W"
-    accuracy_decimals: 2
-    icon: "mdi:lightning-bolt"
-    device_class: power
-    state_class: measurement
-    lambda: |-
-      return 0.0;
-    update_interval: never
-
-  - platform: template
-    name: "Output Power Inst."
-    id: power_act
-    unit_of_measurement: "W"
-    icon: "mdi:flash-alert-outline"
-    device_class: power
-    state_class: measurement
-    lambda: |-
-      return 0.0;
-    update_interval: never
-    disabled_by_default: true
-
   - platform: ina219
     address: 0x40
     shunt_resistance: 0.1 ohm
@@ -342,101 +244,53 @@ sensor:
       internal: true
     update_interval: 1s
 
-  # --- Diagnostics ---
   - platform: internal_temperature
-    name: "ESP32 Internal Temp"
     id: esp32_internal_temp
+    name: "ESP32 Internal Temp"
     update_interval: 15s
-    icon: "mdi:thermometer-lines"
-    entity_category: diagnostic
-
-  - platform: uptime
-    name: "Uptime"
-    type: seconds
-    icon: "mdi:clock-outline"
-    entity_category: diagnostic
-
-  - platform: wifi_signal
-    name: "WiFi Signal"
-    update_interval: 60s
-    icon: "mdi:wifi"
-    entity_category: diagnostic
-
-  - platform: debug
-    free:
-      name: "Heap Free"
-      icon: "mdi:memory"
-    block:
-      name: "Heap Max Block"
-      icon: "mdi:memory"
-    loop_time:
-      name: "Loop Time"
-      icon: "mdi:timer-outline"
 
 # --------------------------------------------------------------------
-# ⚙️ Configuration
+# Configuration numbers
 # --------------------------------------------------------------------
 number:
   - platform: template
-    name: "Charging Power"
     id: charging_limit_level
-    optimistic: true
+    name: "Charging Power"
     min_value: 30
     max_value: 100
     step: 2
     restore_value: true
     initial_value: 100
-    unit_of_measurement: "%"
-    icon: "mdi:lightning-bolt"
-    entity_category: config
 
   - platform: template
-    name: "Max ESP32 Temp."
-    id: max_temp
-    optimistic: true
-    restore_value: true
-    min_value: 70
-    max_value: 100
-    step: 1
-    initial_value: 85
-    unit_of_measurement: "°C"
-    icon: "mdi:thermometer"
-    entity_category: config
-
-  - platform: template
-    name: "Thermal Throttle Ratio"
-    id: throttle_ratio
-    optimistic: true
-    restore_value: true
-    min_value: 0.3
-    max_value: 0.95
-    step: 0.05
-    initial_value: 0.9
-    unit_of_measurement: "ratio"
-    icon: "mdi:flash-outline"
-    entity_category: config
-
-  - platform: template
-    name: "Charging LED Dim Level"
     id: led_dim_level
-    optimistic: true
-    restore_value: true
+    name: "Charging LED Dim Level"
     min_value: 50
     max_value: 100
     step: 1
+    restore_value: true
     initial_value: 75
-    unit_of_measurement: "%"
-    icon: "mdi:brightness-6"
-    entity_category: config
 
-button:
-  - platform: restart
-    name: "Restart Device"
-    icon: "mdi:restart"
-    entity_category: config
+  - platform: template
+    id: max_temp
+    name: "Max ESP32 Temp"
+    min_value: 70
+    max_value: 100
+    step: 1
+    restore_value: true
+    initial_value: 85
+
+  - platform: template
+    id: throttle_ratio
+    name: "Thermal Throttle Ratio"
+    min_value: 0.3
+    max_value: 0.95
+    step: 0.05
+    restore_value: true
+    initial_value: 0.9
 
 # --------------------------------------------------------------------
-# 🧠 Main logic
+# 🧠 Main logic — THERMAL / PWM ONLY (unchanged)
 # --------------------------------------------------------------------
 interval:
   - interval: 3s
@@ -444,94 +298,37 @@ interval:
       - lambda: |-
           float temp = id(esp32_internal_temp).state;
           bool charging_on = id(tablet_charging).state;
+
           static unsigned int burst_phase = 0;
           static bool cooling = false;
+
           float max_temp_val = id(max_temp).state;
           float limit_ratio = id(charging_limit_level).state / 100.0f;
           float throttle = id(throttle_ratio).state;
           float level = limit_ratio;
-          const char* status = "Normal";
 
           if (!charging_on) {
             level = 0.0f;
-            status = "Off";
           } else if (temp >= max_temp_val + 3.0f) {
             cooling = true;
-            status = "Cooling Down";
           } else if (cooling && temp <= (max_temp_val - 3.0f)) {
             cooling = false;
           }
 
           if (charging_on && !cooling) {
             if (temp >= max_temp_val + 2.0f) {
-              status = "Thermal throttling 3";
-              if (burst_phase < 3) level = throttle; else level = limit_ratio;
+              if (burst_phase < 3) level = throttle;
               burst_phase = (burst_phase + 1) % 4;
             } else if (temp >= max_temp_val) {
-              status = "Thermal throttling 2";
-              if (burst_phase < 3) level = throttle; else level = limit_ratio;
+              if (burst_phase < 3) level = throttle;
               burst_phase = (burst_phase + 1) % 5;
             } else if (temp >= (max_temp_val - 3.0f)) {
-              status = "Thermal throttling 1";
-              if (burst_phase < 2) level = throttle; else level = limit_ratio;
+              if (burst_phase < 2) level = throttle;
               burst_phase = (burst_phase + 1) % 5;
             } else {
-              status = "Normal";
-              level = limit_ratio;
               burst_phase = 0;
+              level = limit_ratio;
             }
           }
 
           id(tablet_pwm).set_level(level);
-          id(charging_status).publish_state(status);
-
-          // LED dimming control
-          auto led = id(addressable_led);
-          float dim_level = id(led_dim_level).state / 100.0f;
-          if (charging_on && led->current_values.is_on()) {
-            float current_brightness = led->current_values.get_brightness();
-            if (current_brightness > dim_level + 0.01f) {
-              id(prev_led_brightness) = current_brightness;
-              id(led_dimmed_by_charge) = true;
-              auto call = led->turn_on();
-              call.set_transition_length(1000);
-              call.set_brightness(dim_level);
-              call.perform();
-            } else {
-              id(led_dimmed_by_charge) = false;
-            }
-          } else if (!charging_on && led->current_values.is_on()) {
-            if (id(led_dimmed_by_charge)) {
-              auto call = led->turn_on();
-              call.set_transition_length(1000);
-              call.set_brightness(id(prev_led_brightness));
-              call.perform();
-              id(led_dimmed_by_charge) = false;
-            }
-          }
-
-          // 30s averaging
-          id(power_act).publish_state(id(ina_power).state);
-          id(current_act).publish_state(id(ina_current).state);
-          id(voltage_act).publish_state(id(ina_voltage).state);
-          id(power_accum) += id(ina_power).state;
-          id(current_accum) += id(ina_current).state;
-          id(voltage_accum) += id(ina_voltage).state;
-          id(sample_count)++;
-          if (id(sample_count) >= 30) {
-            id(avg_power).publish_state(id(power_accum) / id(sample_count));
-            id(avg_current).publish_state(id(current_accum) / id(sample_count));
-            id(avg_voltage).publish_state(id(voltage_accum) / id(sample_count));
-            id(power_accum) = id(current_accum) = id(voltage_accum) = 0;
-            id(sample_count) = 0;
-          }
-
-# --------------------------------------------------------------------
-# Helpers
-# --------------------------------------------------------------------
-binary_sensor:
-  - platform: template
-    id: led_power_low
-    internal: true
-    lambda: |-
-      return id(ina_power).state < 7.5;
