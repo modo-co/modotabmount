@@ -4,7 +4,7 @@ esphome:
   name_add_mac_suffix: true
 
   # --------------------------------------------------------------------
-  # 💡 LED indication for AP setup mode
+  # 💡 LED indication for AP setup mode (unchanged behavior, centralized)
   # --------------------------------------------------------------------
   on_boot:
     priority: -100
@@ -16,16 +16,10 @@ esphome:
                      wifi::global_wifi_component->has_ap();
           then:
             - logger.log: "📶 Access Point active — enabling setup LED Scanner effect"
-            - light.turn_on:
-                id: addressable_led
-                effect: "Scanner"
-                brightness: 100%
-                red: 0%
-                green: 0%
-                blue: 100%
+            - script.execute: led_ap_mode
           else:
             - logger.log: "✅ Wi-Fi connected — disabling setup LED"
-            - light.turn_off: addressable_led
+            - script.execute: led_ap_mode_stop
 
 esp32:
   board: esp32-c3-devkitm-1
@@ -33,7 +27,6 @@ esp32:
     type: esp-idf
   variant: esp32c3
 
-# Lighter logging to save RAM
 logger:
 
 debug:
@@ -48,32 +41,9 @@ wifi:
   on_connect:
     then:
       - logger.log: "✅ WiFi connected — stopping setup LED"
-      # Stop any running effect FIRST
-      - light.turn_off:
-          id: addressable_led
-          transition_length: 0s
-      - delay: 1s
+      - script.execute: led_ap_mode_stop
       - logger.log: "💚 Flashing green LED 3 times"
-      - repeat:
-          count: 3
-          then:
-            - light.turn_on:
-                id: addressable_led
-                brightness: 100%
-                red: 0%
-                green: 100%
-                blue: 0%
-                transition_length: 0s
-            - delay: 300ms
-            - light.turn_off:
-                id: addressable_led
-                transition_length: 0s
-            - delay: 300ms
-
-      - logger.log: "✅ WiFi LED sequence complete — LED OFF"
-      - light.turn_off:
-          id: addressable_led
-          transition_length: 0s
+      - script.execute: led_wifi_connected
 
 captive_portal:
 
@@ -84,6 +54,7 @@ web_server:
   port: 80
   version: 3
   log: false
+  ota: false
 
 bluetooth_proxy:
   active: true
@@ -93,35 +64,54 @@ i2c:
   scl: 21
   scan: true
 
+# --------------------------------------------------------------------
+# Globals
+# --------------------------------------------------------------------
 globals:
   - id: prev_led_brightness
     type: float
     restore_value: no
     initial_value: '1.0'
+
   - id: last_charging_state
     type: bool
     restore_value: no
     initial_value: 'false'
+
   - id: power_accum
     type: float
     restore_value: no
     initial_value: '0.0'
+
   - id: current_accum
     type: float
     restore_value: no
     initial_value: '0.0'
+
   - id: voltage_accum
     type: float
     restore_value: no
     initial_value: '0.0'
+
   - id: sample_count
     type: int
     restore_value: no
     initial_value: '0'
-  - id: led_dimmed_by_charge
+
+  # agreed: clamp state (replaces old "led_dimmed_by_charge" loop)
+  - id: led_clamp_active
     type: bool
     restore_value: no
     initial_value: 'false'
+
+  # agreed: ownership to prevent clamp touching AP/WiFi feedback
+  - id: led_mode
+    type: int
+    restore_value: no
+    initial_value: '0'
+    # 0 = user
+    # 1 = ap_mode
+    # 2 = wifi_feedback
 
 # --------------------------------------------------------------------
 # PWM output
@@ -133,7 +123,7 @@ output:
     frequency: 1000 Hz
 
 # --------------------------------------------------------------------
-# ⚡ Sensor and Control
+# ⚡ Charging control
 # --------------------------------------------------------------------
 switch:
   - platform: template
@@ -142,6 +132,28 @@ switch:
     icon: "mdi:tablet-cellphone"
     optimistic: true
 
+    # apply clamp immediately if LED already on
+    on_turn_on:
+      then:
+        - script.execute: led_apply_clamp_deferred
+
+    # restore user brightness when charging turns off
+    on_turn_off:
+      then:
+        - lambda: |-
+            if (!id(led_clamp_active)) return;
+
+            if (id(addressable_led).current_values.is_on()) {
+              auto call = id(addressable_led).turn_on();
+              call.set_brightness(id(prev_led_brightness));
+              call.perform();
+            }
+
+            id(led_clamp_active) = false;
+
+# --------------------------------------------------------------------
+# Addressable LED
+# --------------------------------------------------------------------
 light:
   - platform: esp32_rmt_led_strip
     id: addressable_led
@@ -151,7 +163,12 @@ light:
     pin: GPIO5
     num_leds: 64
     rgb_order: GRB
-    default_transition_length: 1s
+    default_transition_length: 0s
+
+    on_state:
+      then:
+        - script.execute: led_apply_clamp_deferred
+
     effects:
       - addressable_rainbow:
           name: Rainbow
@@ -183,7 +200,7 @@ light:
       - pulse:
           name: Pulse
           transition_length: 1200ms
-          update_interval: 1200ms  
+          update_interval: 1200ms
       - pulse:
           name: Pulse Fast
           transition_length: 600ms
@@ -238,6 +255,97 @@ light:
           spark_probability: 20%
           fade_out_rate: 160
 
+# --------------------------------------------------------------------
+# LED system scripts (AP + WiFi feedback + clamp)
+# --------------------------------------------------------------------
+script:
+  - id: led_apply_clamp_deferred
+    mode: restart
+    then:
+      - delay: 0ms
+      - lambda: |-
+          // Do not touch system-owned LED modes (AP / WiFi feedback)
+          if (id(led_mode) != 0) return;
+
+          // Clamp only while charging
+          if (!id(tablet_charging).state) return;
+
+          // LED must be ON
+          if (!id(addressable_led).current_values.is_on()) return;
+
+          float allowed = id(led_dim_level).state / 100.0f;
+          float current = id(addressable_led).current_values.get_brightness();
+
+          // User sets LOWER brightness while charging → accept it
+          if (current < allowed - 0.01f) {
+            id(prev_led_brightness) = current;
+            id(led_clamp_active) = false;
+            return;
+          }
+
+          // Already within limits → nothing to do
+          if (current <= allowed + 0.01f) return;
+
+          // Above allowed → clamp
+          if (!id(led_clamp_active)) {
+            id(prev_led_brightness) = current;
+            id(led_clamp_active) = true;
+          }
+
+          auto call = id(addressable_led).turn_on();
+          call.set_brightness(allowed);
+          call.perform();
+
+
+  - id: led_ap_mode
+    mode: restart
+    then:
+      - lambda: 'id(led_mode) = 1;'
+      - light.turn_on:
+          id: addressable_led
+          effect: "Scanner"
+          brightness: 100%
+          red: 0%
+          green: 0%
+          blue: 100%
+
+  - id: led_ap_mode_stop
+    then:
+      - if:
+          condition:
+            lambda: 'return id(led_mode) == 1;'
+          then:
+            - light.turn_off: addressable_led
+            - lambda: 'id(led_mode) = 0;'
+
+  - id: led_wifi_connected
+    mode: restart
+    then:
+      - lambda: 'id(led_mode) = 2;'
+      - light.turn_off:
+          id: addressable_led
+          transition_length: 0s
+      - delay: 150ms
+      - repeat:
+          count: 3
+          then:
+            - light.turn_on:
+                id: addressable_led
+                brightness: 100%
+                red: 0%
+                green: 100%
+                blue: 0%
+                transition_length: 0s
+            - delay: 250ms
+            - light.turn_off:
+                id: addressable_led
+                transition_length: 0s
+            - delay: 250ms
+      - lambda: 'id(led_mode) = 0;'
+
+# --------------------------------------------------------------------
+# Text sensors
+# --------------------------------------------------------------------
 text_sensor:
   - platform: template
     name: "Charging Status"
@@ -253,7 +361,7 @@ text_sensor:
       name: "Device Reset Reason"
 
 # --------------------------------------------------------------------
-# 🔌 Sensors
+# Sensors
 # --------------------------------------------------------------------
 sensor:
   - platform: template
@@ -436,10 +544,10 @@ button:
     entity_category: config
 
 # --------------------------------------------------------------------
-# 🧠 Main logic
+# THERMAL + STATUS + AVERAGING
 # --------------------------------------------------------------------
 interval:
-  - interval: 3s
+  - interval: 1s
     then:
       - lambda: |-
           float temp = id(esp32_internal_temp).state;
@@ -485,32 +593,7 @@ interval:
           id(tablet_pwm).set_level(level);
           id(charging_status).publish_state(status);
 
-          // LED dimming control
-          auto led = id(addressable_led);
-          float dim_level = id(led_dim_level).state / 100.0f;
-          if (charging_on && led->current_values.is_on()) {
-            float current_brightness = led->current_values.get_brightness();
-            if (current_brightness > dim_level + 0.01f) {
-              id(prev_led_brightness) = current_brightness;
-              id(led_dimmed_by_charge) = true;
-              auto call = led->turn_on();
-              call.set_transition_length(1000);
-              call.set_brightness(dim_level);
-              call.perform();
-            } else {
-              id(led_dimmed_by_charge) = false;
-            }
-          } else if (!charging_on && led->current_values.is_on()) {
-            if (id(led_dimmed_by_charge)) {
-              auto call = led->turn_on();
-              call.set_transition_length(1000);
-              call.set_brightness(id(prev_led_brightness));
-              call.perform();
-              id(led_dimmed_by_charge) = false;
-            }
-          }
-
-          // 30s averaging
+          // 30s averaging (unchanged)
           id(power_act).publish_state(id(ina_power).state);
           id(current_act).publish_state(id(ina_current).state);
           id(voltage_act).publish_state(id(ina_voltage).state);
