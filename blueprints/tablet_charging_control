@@ -1,0 +1,78 @@
+blueprint:
+  name: Tablet Charging Control (Battery %)
+  description: >
+    Automatically turns tablet charging ON below a minimum battery level
+    and OFF above a maximum battery level.
+    Designed for wall-mounted tablets and smart chargers.
+  domain: automation
+
+  input:
+    battery_sensor:
+      name: Battery level sensor
+      description: Sensor reporting battery level in %
+      selector:
+        entity:
+          domain: sensor
+          device_class: battery
+
+    charging_switch:
+      name: Charging switch
+      description: Switch controlling tablet charging power
+      selector:
+        entity:
+          domain: switch
+
+    min_level:
+      name: Minimum battery level (%)
+      description: Charging turns ON at or below this level
+      default: 20
+      selector:
+        number:
+          min: 5
+          max: 50
+          step: 1
+          unit_of_measurement: "%"
+
+    max_level:
+      name: Maximum battery level (%)
+      description: Charging turns OFF at or above this level
+      default: 80
+      selector:
+        number:
+          min: 50
+          max: 100
+          step: 1
+          unit_of_measurement: "%"
+
+mode: single
+
+trigger:
+  - platform: numeric_state
+    entity_id: !input battery_sensor
+    below: !input min_level
+
+  - platform: numeric_state
+    entity_id: !input battery_sensor
+    above: !input max_level
+
+action:
+  - choose:
+      # 🔌 Turn charging ON
+      - conditions:
+          - condition: numeric_state
+            entity_id: !input battery_sensor
+            below: !input min_level
+        sequence:
+          - service: switch.turn_on
+            target:
+              entity_id: !input charging_switch
+
+      # 🔋 Turn charging OFF
+      - conditions:
+          - condition: numeric_state
+            entity_id: !input battery_sensor
+            above: !input max_level
+        sequence:
+          - service: switch.turn_off
+            target:
+              entity_id: !input charging_switch
