@@ -165,10 +165,9 @@ light:
     rgb_order: GRB
     default_transition_length: 0s
 
-    # event-driven clamp, panic-safe (script executes outside callback)
-    on_turn_on:
+    on_state:
       then:
-        - script.execute: led_apply_clamp
+        - script.execute: led_apply_clamp_deferred
 
     effects:
       - addressable_rainbow:
@@ -282,6 +281,45 @@ script:
           auto call = id(addressable_led).turn_on();
           call.set_brightness(allowed);
           call.perform();
+
+script:
+  - id: led_apply_clamp_deferred
+    mode: restart
+    then:
+      - delay: 0ms
+      - lambda: |-
+          // Do not touch system-owned LED modes (AP / WiFi feedback)
+          if (id(led_mode) != 0) return;
+
+          // Clamp only while charging
+          if (!id(tablet_charging).state) return;
+
+          // LED must be ON
+          if (!id(addressable_led).current_values.is_on()) return;
+
+          float allowed = id(led_dim_level).state / 100.0f;
+          float current = id(addressable_led).current_values.get_brightness();
+
+          // User sets LOWER brightness while charging → accept it
+          if (current < allowed - 0.01f) {
+            id(prev_led_brightness) = current;
+            id(led_clamp_active) = false;
+            return;
+          }
+
+          // Already within limits → nothing to do
+          if (current <= allowed + 0.01f) return;
+
+          // Above allowed → clamp
+          if (!id(led_clamp_active)) {
+            id(prev_led_brightness) = current;
+            id(led_clamp_active) = true;
+          }
+
+          auto call = id(addressable_led).turn_on();
+          call.set_brightness(allowed);
+          call.perform();
+
 
   - id: led_ap_mode
     mode: restart
