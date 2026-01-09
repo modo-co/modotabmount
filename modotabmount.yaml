@@ -27,7 +27,6 @@ esp32:
     type: esp-idf
   variant: esp32c3
 
-# Lighter logging to save RAM (keep as you had; set level if you want)
 logger:
 
 debug:
@@ -55,6 +54,7 @@ web_server:
   port: 80
   version: 3
   log: false
+  ota: false
 
 bluetooth_proxy:
   active: true
@@ -135,7 +135,7 @@ switch:
     # apply clamp immediately if LED already on
     on_turn_on:
       then:
-        - script.execute: led_apply_clamp
+        - script.execute: led_apply_clamp_deferred
 
     # restore user brightness when charging turns off
     on_turn_off:
@@ -258,30 +258,6 @@ light:
 # --------------------------------------------------------------------
 # LED system scripts (AP + WiFi feedback + clamp)
 # --------------------------------------------------------------------
-script:
-  # clamp script (stores user brightness once, clamps while charging)
-  - id: led_apply_clamp
-    mode: restart
-    then:
-      - lambda: |-
-          if (id(led_mode) != 0) return;                 // don't touch system-owned modes
-          if (!id(tablet_charging).state) return;        // only clamp while charging
-          if (!id(addressable_led).current_values.is_on()) return;
-
-          float allowed = id(led_dim_level).state / 100.0f;
-          float current = id(addressable_led).current_values.get_brightness();
-
-          if (current <= allowed + 0.01f) return;
-
-          if (!id(led_clamp_active)) {
-            id(prev_led_brightness) = current;           // save user intent once
-            id(led_clamp_active) = true;
-          }
-
-          auto call = id(addressable_led).turn_on();
-          call.set_brightness(allowed);
-          call.perform();
-
 script:
   - id: led_apply_clamp_deferred
     mode: restart
