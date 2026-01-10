@@ -98,13 +98,13 @@ globals:
     restore_value: no
     initial_value: '0'
 
-  # agreed: clamp state (replaces old "led_dimmed_by_charge" loop)
+  # clamp state (replaces old "led_dimmed_by_charge" loop)
   - id: led_clamp_active
     type: bool
     restore_value: no
     initial_value: 'false'
 
-  # agreed: ownership to prevent clamp touching AP/WiFi feedback
+  # ownership to prevent clamp touching AP/WiFi feedback
   - id: led_mode
     type: int
     restore_value: no
@@ -533,6 +533,19 @@ number:
     icon: "mdi:brightness-6"
     entity_category: config
 
+  - platform: template
+    name: "Control Interval"
+    id: control_interval
+    optimistic: true
+    restore_value: true
+    min_value: 1
+    max_value: 10
+    step: 1
+    initial_value: 1
+    unit_of_measurement: "s"
+    icon: "mdi:timer-outline"
+    entity_category: config
+
 button:
   - platform: restart
     name: "Restart Device"
@@ -543,19 +556,34 @@ button:
 # THERMAL + STATUS + AVERAGING
 # --------------------------------------------------------------------
 interval:
-  - interval: 3s
+  - interval: 1s
     then:
       - lambda: |-
+          static uint32_t last_run = 0;
+          uint32_t now = millis();
+
+          uint32_t interval_ms = (uint32_t)(id(control_interval).state * 1000.0f);
+
+          if (now - last_run < interval_ms) return;
+          last_run = now;
+
+          // ------------------------------------------------------------------
+          // EXISTING THERMAL + STATUS + AVERAGING LOGIC (unchanged)
+          // ------------------------------------------------------------------
+
           float temp = id(esp32_internal_temp).state;
           bool charging_on = id(tablet_charging).state;
+
           static unsigned int burst_phase = 0;
           static bool cooling = false;
+
           float max_temp_val = id(max_temp).state;
           float limit_ratio = id(charging_limit_level).state / 100.0f;
           float throttle = id(throttle_ratio).state;
           float level = limit_ratio;
+
           const char* status = "Normal";
-          
+
           if (!charging_on) {
             level = 0.0f;
             status = "Off";
@@ -569,15 +597,15 @@ interval:
           if (charging_on && !cooling) {
             if (temp >= max_temp_val + 2.0f) {
               status = "Thermal throttling 3";
-              if (burst_phase < 3) level = throttle; else level = limit_ratio;
+              if (burst_phase < 3) level = throttle;
               burst_phase = (burst_phase + 1) % 4;
             } else if (temp >= max_temp_val) {
               status = "Thermal throttling 2";
-              if (burst_phase < 3) level = throttle; else level = limit_ratio;
+              if (burst_phase < 3) level = throttle;
               burst_phase = (burst_phase + 1) % 5;
             } else if (temp >= (max_temp_val - 3.0f)) {
               status = "Thermal throttling 1";
-              if (burst_phase < 2) level = throttle; else level = limit_ratio;
+              if (burst_phase < 2) level = throttle;
               burst_phase = (burst_phase + 1) % 5;
             } else {
               status = "Normal";
@@ -587,22 +615,24 @@ interval:
           }
 
           id(tablet_pwm).set_level(level);
-          
-          //id(charging_status).publish_state(status);
-          static const char* last_status = "";          
+
+          // Publish charging status ONLY when it changes
+          static const char* last_status = "";
           if (strcmp(last_status, status) != 0) {
             id(charging_status).publish_state(status);
             last_status = status;
           }
-          
-          // 30s averaging (unchanged)
+
+          // 30s averaging (unchanged behavior)
           id(power_act).publish_state(id(ina_power).state);
           id(current_act).publish_state(id(ina_current).state);
           id(voltage_act).publish_state(id(ina_voltage).state);
+
           id(power_accum) += id(ina_power).state;
           id(current_accum) += id(ina_current).state;
           id(voltage_accum) += id(ina_voltage).state;
           id(sample_count)++;
+
           if (id(sample_count) >= 30) {
             id(avg_power).publish_state(id(power_accum) / id(sample_count));
             id(avg_current).publish_state(id(current_accum) / id(sample_count));
