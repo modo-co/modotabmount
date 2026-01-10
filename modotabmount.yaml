@@ -2,16 +2,7 @@ esphome:
   name: modotabmount
   friendly_name: Modo Tab Mount
   name_add_mac_suffix: true
-
-  on_ap_start:
-    then:
-      - logger.log: "📶 AP started — enabling setup LED"
-      - script.execute: led_ap_mode
-
-  on_connect:
-    then:
-      - logger.log: "✅ Wi-Fi connected — disabling setup LED"
-      - script.execute: led_ap_mode_stop
+  
 esp32:
   board: esp32-c3-devkitm-1
   variant: esp32c3
@@ -32,13 +23,17 @@ api:
 
 wifi:
   ap:
+  on_ap_start:
+    then:
+      - logger.log: "📶 AP started — enabling setup LED"
+      - script.execute: led_ap_mode 
   on_connect:
     then:
       - logger.log: "✅ WiFi connected — stopping setup LED"
       - script.execute: led_ap_mode_stop
       - logger.log: "💚 Flashing green LED 3 times"
       - script.execute: led_wifi_connected
-
+     
 captive_portal:
 
 ota:
