@@ -3,24 +3,31 @@ esphome:
   friendly_name: Modo Tab Mount
   name_add_mac_suffix: true
 
-  # --------------------------------------------------------------------
-  # 💡 LED indication for AP setup mode (unchanged behavior, centralized)
-  # --------------------------------------------------------------------
   on_boot:
-    priority: -100
-    then:
-      - if:
-          condition:
-            lambda: |-
-              return !wifi::global_wifi_component->is_connected() &&
-                     wifi::global_wifi_component->has_ap();
-          then:
-            - logger.log: "📶 Access Point active — enabling setup LED Scanner effect"
-            - script.execute: led_ap_mode
-          else:
-            - logger.log: "✅ Wi-Fi connected — disabling setup LED"
-            - script.execute: led_ap_mode_stop
+    # --- OTA-safe BLE handling (must run very early)
+    - priority: -200
+      then:
+        - if:
+            condition:
+              lambda: 'return !id(ble_enabled);'
+            then:
+              - logger.log: "BLE disabled (OTA-safe mode)"
+              - esp32_ble_tracker.stop: ble_tracker
 
+    # --- AP / Wi-Fi LED indication
+    - priority: -100
+      then:
+        - if:
+            condition:
+              lambda: |-
+                return !wifi::global_wifi_component->is_connected() &&
+                       wifi::global_wifi_component->has_ap();
+            then:
+              - logger.log: "📶 Access Point active — enabling setup LED Scanner effect"
+              - script.execute: led_ap_mode
+            else:
+              - logger.log: "✅ Wi-Fi connected — disabling setup LED"
+              - script.execute: led_ap_mode_stop
 esp32:
   board: esp32-c3-devkitm-1
   framework:
@@ -56,6 +63,9 @@ web_server:
   log: false
   ota: false
 
+esp32_ble_tracker:
+  id: ble_tracker
+
 bluetooth_proxy:
   active: true
 
@@ -68,6 +78,11 @@ i2c:
 # Globals
 # --------------------------------------------------------------------
 globals:
+  - id: ble_enabled
+    type: bool
+    restore_value: yes
+    initial_value: 'true'
+  
   - id: prev_led_brightness
     type: float
     restore_value: no
@@ -153,13 +168,21 @@ switch:
 
   - platform: template
     name: "BLE Proxy"
-    icon: "mdi:bluetooth"
+    icon: mdi:bluetooth
     id: ble_proxy_switch
+    entity_category: config
     optimistic: true
+    restore_value: true
+
     turn_on_action:
-      - bluetooth_proxy.enable: ble_proxy
+      - lambda: 'id(ble_enabled) = true;'
+      - button.press: restart_button
+
     turn_off_action:
-      - bluetooth_proxy.disable: ble_proxy
+      - lambda: 'id(ble_enabled) = false;'
+      - esp32_ble_tracker.stop: ble_tracker
+      - delay: 300ms
+      - button.press: restart_button
 
 # --------------------------------------------------------------------
 # Addressable LED
