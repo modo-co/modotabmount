@@ -62,7 +62,7 @@ bluetooth_proxy:
 i2c:
   sda: 7
   scl: 21
-  scan: true
+  scan: false
 
 # --------------------------------------------------------------------
 # Globals
@@ -240,10 +240,6 @@ light:
       - addressable_rainbow:
           name: Party Rainbow
           speed: 5
-      - addressable_twinkle:
-          name: Celebration Twinkle
-          twinkle_probability: 15%
-          progress_interval: 2ms
       - addressable_scan:
           name: Energy Beam
           move_interval: 20ms
@@ -559,7 +555,7 @@ interval:
           float throttle = id(throttle_ratio).state;
           float level = limit_ratio;
           const char* status = "Normal";
-
+          
           if (!charging_on) {
             level = 0.0f;
             status = "Off";
@@ -591,8 +587,14 @@ interval:
           }
 
           id(tablet_pwm).set_level(level);
-          id(charging_status).publish_state(status);
-
+          
+          //id(charging_status).publish_state(status);
+          static const char* last_status = "";          
+          if (strcmp(last_status, status) != 0) {
+            id(charging_status).publish_state(status);
+            last_status = status;
+          }
+          
           // 30s averaging (unchanged)
           id(power_act).publish_state(id(ina_power).state);
           id(current_act).publish_state(id(ina_current).state);
