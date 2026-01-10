@@ -546,6 +546,17 @@ number:
     icon: "mdi:timer-outline"
     entity_category: config
 
+switch:
+  - platform: template
+    name: "BLE Proxy"
+    icon: "mdi:bluetooth"
+    id: ble_proxy_switch
+    optimistic: true
+    turn_on_action:
+      - bluetooth_proxy.enable: ble_proxy
+    turn_off_action:
+      - bluetooth_proxy.disable: ble_proxy
+
 button:
   - platform: restart
     name: "Restart Device"
