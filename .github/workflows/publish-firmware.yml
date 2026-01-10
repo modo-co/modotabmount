@@ -14,7 +14,7 @@ jobs:
     with:
       files: |
         modotabmount.factory.yaml
-      esphome-version: 2025.10.1
+      esphome-version: 2025.11.3
       combined-name: modotabmount
       release-summary: ${{ github.event.release.body }}
       release-url: ${{ github.event.release.html_url }}
