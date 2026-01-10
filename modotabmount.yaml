@@ -22,11 +22,11 @@ network:
 api:
 
 wifi:
-  ap:
   on_ap_start:
     then:
       - logger.log: "📶 AP started — enabling setup LED"
-      - script.execute: led_ap_mode 
+      - script.execute: led_ap_mode
+
   on_connect:
     then:
       - logger.log: "✅ WiFi connected — stopping setup LED"
