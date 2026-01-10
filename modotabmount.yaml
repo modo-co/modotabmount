@@ -543,7 +543,7 @@ button:
 # THERMAL + STATUS + AVERAGING
 # --------------------------------------------------------------------
 interval:
-  - interval: 1s
+  - interval: 3s
     then:
       - lambda: |-
           float temp = id(esp32_internal_temp).state;
