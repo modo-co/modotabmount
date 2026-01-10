@@ -4,17 +4,7 @@ esphome:
   name_add_mac_suffix: true
 
   on_boot:
-    # --- OTA-safe BLE handling (must run very early)
-    - priority: -200
-      then:
-        - if:
-            condition:
-              lambda: 'return !id(ble_enabled);'
-            then:
-              - logger.log: "BLE disabled (OTA-safe mode)"
-              - esp32_ble_tracker.stop: ble_tracker
-
-    # --- AP / Wi-Fi LED indication
+  # --- AP / Wi-Fi LED indication
     - priority: -100
       then:
         - if:
@@ -62,9 +52,6 @@ web_server:
   version: 3
   log: false
   ota: false
-
-esp32_ble_tracker:
-  id: ble_tracker
 
 bluetooth_proxy:
   active: true
@@ -165,25 +152,7 @@ switch:
             }
 
             id(led_clamp_active) = false;
-
-  - platform: template
-    name: "BLE Proxy"
-    icon: mdi:bluetooth
-    id: ble_proxy_switch
-    entity_category: config
-    optimistic: true
-    restore_value: true
-
-    turn_on_action:
-      - lambda: 'id(ble_enabled) = true;'
-      - button.press: restart_button
-
-    turn_off_action:
-      - lambda: 'id(ble_enabled) = false;'
-      - esp32_ble_tracker.stop: ble_tracker
-      - delay: 300ms
-      - button.press: restart_button
-
+            
 # --------------------------------------------------------------------
 # Addressable LED
 # --------------------------------------------------------------------
@@ -581,6 +550,7 @@ number:
 
 button:
   - platform: restart
+    id: restart_button
     name: "Restart Device"
     icon: "mdi:restart"
     entity_category: config
