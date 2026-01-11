@@ -4,7 +4,7 @@ esphome:
   name_add_mac_suffix: true
 
   on_boot:
-    - priority:
+    - priority: 250.0
       then:
         - lambda: |-
             // Check if there are ANY credentials stored in the WiFi component
