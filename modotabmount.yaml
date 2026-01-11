@@ -45,6 +45,8 @@ wifi:
       - script.execute: led_ap_mode_stop
       - logger.log: "💚 Flashing green LED 3 times"
       - script.execute: led_wifi_connected
+      - logger.log: "Checking OTA"
+      - script.execute: delayed_firmware_check
      
 captive_portal:
 
