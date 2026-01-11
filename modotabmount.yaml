@@ -41,14 +41,15 @@ wifi:
   ap:
   on_connect:
     then:
-      - logger.log: "✅ WiFi connected — stopping setup LED"
+      - logger.log: "WiFi connected"
       - script.execute: led_ap_mode_stop
-      - logger.log: "💚 Flashing green LED 3 times"
       - script.execute: led_wifi_connected
-      - logger.log: "Checking OTA"
       - lambda: |-
           if (id(delayed_firmware_check) != nullptr) {
+            ESP_LOGI("ota", "Factory firmware → scheduling OTA");
             id(delayed_firmware_check).execute();
+          } else {
+            ESP_LOGI("ota", "Adopted firmware → no OTA");
           }
      
 captive_portal:
