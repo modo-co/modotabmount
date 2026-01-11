@@ -62,7 +62,7 @@ esp32_ble:
   disable_bt_logs: true
 
 bluetooth_proxy:
-  id: bluetooth_proxy
+  id: bt_proxy
   active: false
   connection_slots: 1
   cache_services: false
