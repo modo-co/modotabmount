@@ -46,7 +46,10 @@ wifi:
       - logger.log: "💚 Flashing green LED 3 times"
       - script.execute: led_wifi_connected
       - logger.log: "Checking OTA"
-      - script.execute: delayed_firmware_check
+      - lambda: |-
+          if (id(delayed_firmware_check) != nullptr) {
+            id(delayed_firmware_check).execute();
+          }
      
 captive_portal:
 
