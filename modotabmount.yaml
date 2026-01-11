@@ -2,7 +2,25 @@ esphome:
   name: modotabmount
   friendly_name: Modo Tab Mount
   name_add_mac_suffix: true
-  
+    on_boot:
+    # --- AP / Wi-Fi LED indication
+    - priority: -100
+      then:
+        - if:
+            condition:
+              lambda: |-
+                if (wifi::global_wifi_component == nullptr) {
+                  return false;
+                }
+                return !wifi::global_wifi_component->is_connected() &&
+                       wifi::global_wifi_component->has_ap();
+            then:
+              - logger.log: "📶 Access Point active — enabling setup LED Scanner effect"
+              - script.execute: led_ap_mode
+            else:
+              - logger.log: "✅ Wi-Fi connected — disabling setup LED"
+              - script.execute: led_ap_mode_stop
+
 esp32:
   board: esp32-c3-devkitm-1
   variant: esp32c3
@@ -24,17 +42,8 @@ api:
 wifi:
   on_connect:
     then:
-      - logger.log: "✅ WiFi connected — stopping setup LED"
       - script.execute: led_ap_mode_stop
-      - logger.log: "💚 Flashing green LED 3 times"
-      - script.execute: led_wifi_connected
-
-      # Factory-only OTA (safe guard)
-      - lambda: |-
-          if (id(delayed_firmware_check) != nullptr) {
-            ESP_LOGI("ota", "Factory firmware detected → scheduling OTA check");
-            id(delayed_firmware_check).execute();
-          }
+      - script.execute: led_wifi_connected   # 3× green flash
      
 captive_portal:
   on_start:
