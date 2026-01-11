@@ -52,8 +52,8 @@ web_server:
   log: false
   ota: false
 
-#esp32_ble:
-#  disable_bt_logs: true
+esp32_ble:
+  disable_bt_logs: true
 
 #bluetooth_proxy:
 #  id: bt_proxy
