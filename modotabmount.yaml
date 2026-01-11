@@ -1,8 +1,9 @@
 esphome:
-  name: modotabmount
+ name: modotabmount
   friendly_name: Modo Tab Mount
   name_add_mac_suffix: true
-    on_boot:
+
+  on_boot:
     # --- AP / Wi-Fi LED indication
     - priority: -100
       then:
