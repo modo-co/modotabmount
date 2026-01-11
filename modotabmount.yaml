@@ -138,7 +138,7 @@ switch:
   - platform: template
     name: "Bluetooth Enabled"
     id: bluetooth_switch
-    restore_state: yes # Remembers the state after reboot
+    restore_mode: RESTORE_DEFAULT_ON
 
     # When turned off, disable the BLE radio entirely
     on_turn_off:
