@@ -62,6 +62,7 @@ esp32_ble:
   disable_bt_logs: true
 
 bluetooth_proxy:
+  id: bluetooth_proxy
   active: false
   connection_slots: 1
   cache_services: false
@@ -138,6 +139,23 @@ output:
 # ⚡ Charging control
 # --------------------------------------------------------------------
 switch:
+
+  - platform: template
+    name: "Bluetooth Enabled"
+    id: bluetooth_switch
+    restore_value: yes # Remembers the state after reboot
+
+    # When turned off, disable the BLE radio entirely
+    on_turn_off:
+      then:
+        - ble.disable:
+        - logger.log: "Bluetooth radio disabled"
+
+    # When turned on, enable the BLE radio on boot
+    on_turn_on:
+      then:
+        - logger.log: "Bluetooth radio enabled"
+  
   - platform: template
     id: tablet_charging
     name: "Tablet Charging"
