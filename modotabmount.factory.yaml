@@ -60,12 +60,3 @@ button:
     on_press:
       - lambda: |-
           id(update_http_request).check();
-
-script:
-  - id: delayed_firmware_check
-    mode: restart
-    then:
-      - logger.log: "OTA: script started"
-      - delay: 30s
-      - logger.log: "OTA: performing update"
-      - update.perform: update_http_request
