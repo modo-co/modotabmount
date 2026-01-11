@@ -4,15 +4,12 @@ esphome:
   name_add_mac_suffix: true
 
   on_boot:
-    # --- AP / Wi-Fi LED indication
+  # --- AP / Wi-Fi LED indication
     - priority: -100
       then:
         - if:
             condition:
               lambda: |-
-                if (wifi::global_wifi_component == nullptr) {
-                  return false;
-                }
                 return !wifi::global_wifi_component->is_connected() &&
                        wifi::global_wifi_component->has_ap();
             then:
@@ -41,10 +38,13 @@ network:
 api:
 
 wifi:
+  ap:
   on_connect:
     then:
+      - logger.log: "✅ WiFi connected — stopping setup LED"
       - script.execute: led_ap_mode_stop
-      - script.execute: led_wifi_connected   # 3× green flash
+      - logger.log: "💚 Flashing green LED 3 times"
+      - script.execute: led_wifi_connected
      
 captive_portal:
 
