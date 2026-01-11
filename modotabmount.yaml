@@ -43,9 +43,6 @@ wifi:
       - logger.log: "WiFi connected"
       - script.execute: led_ap_mode_stop
       - script.execute: led_wifi_connected
-      - delay: 5s
-      - logger.log: "Checking for OTA update"
-      - lambda: id(ota_http_request).check();      
            
 captive_portal:
 
