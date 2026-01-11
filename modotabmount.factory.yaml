@@ -41,6 +41,7 @@ update:
     name: MTM Firmware
     id: update_http_request
     source: https://raw.githubusercontent.com/modo-co/modotabmount/refs/heads/main/fw/stable/manifest.json
+    update_interval: 12h
     device_class: firmware
     entity_category: diagnostic
     icon: "mdi:chip"
@@ -50,6 +51,15 @@ button:
     name: "Reset to Factory Settings"
     icon: "mdi:cog-refresh"
     entity_category: config
+
+  - platform: template
+    name: "Check for FW Update"
+    id: btn_check_update
+    entity_category: diagnostic
+    icon: "mdi:refresh"
+    on_press:
+      - lambda: |-
+          id(update_http_request).check();
 
 script:
   - id: delayed_firmware_check
