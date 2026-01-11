@@ -8,7 +8,7 @@ esphome:
   # configuration and updates.
   project:
     name: modoco.modotabmount
-    version: "1.0.9"
+    version: "1.0.11"
 
 # This should point to the public location of the yaml file that will be adopted.
 # In this case it is the core yaml file that does not contain the extra things
@@ -28,8 +28,8 @@ improv_serial:
 # Used to pull OTA updates
 http_request:
   verify_ssl: false
-  buffer_size_rx: 2048
-  buffer_size_tx: 2048
+  buffer_size_rx: 512
+  buffer_size_tx: 512
 
 ota:
   - platform: esphome
