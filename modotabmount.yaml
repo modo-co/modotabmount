@@ -34,11 +34,10 @@ wifi:
       - logger.log: "💚 Flashing green LED 3 times"
       - script.execute: led_wifi_connected
 
-      # --- OTA delay (safe even if OTA not present)
-      - delay: 30s
+      # Factory-only OTA (safe guard)
       - lambda: |-
-          if (id(update_http_request) != nullptr) {
-            ESP_LOGI("ota", "Delayed OTA check");
+          if (id(delayed_firmware_check) != nullptr) {
+            ESP_LOGI("ota", "Factory firmware detected → scheduling OTA check");
             id(delayed_firmware_check).execute();
           }
      
