@@ -59,4 +59,5 @@ button:
     icon: "mdi:refresh"
     on_press:
       - lambda: |-
+          ESP_LOGI("main", "Manual update check triggered via button.");
           id(update_http_request).check();
