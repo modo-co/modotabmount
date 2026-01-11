@@ -56,9 +56,3 @@ script:
     then:
       - logger.log: "OTA: delayed firmware check"
       - update.perform: update_http_request
-
-wifi:
-  on_connect:
-    then:
-      - delay: 30s
-      - script.execute: delayed_firmware_check
