@@ -22,6 +22,20 @@ esp32:
     type: esp-idf
     sdkconfig_options:
       CONFIG_ESP_TASK_WDT_TIMEOUT_S: "10"
+      # --- Big flash wins
+      CONFIG_COMPILER_OPTIMIZATION_SIZE: "y"
+      CONFIG_NEWLIB_NANO_FORMAT: "y"
+      CONFIG_COMPILER_ASSERTIONS_DISABLE: "y"
+      # --- Wi-Fi (mostly RAM, keep conservative)
+      CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM: "4"
+      CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM: "8"
+      CONFIG_ESP_WIFI_AMPDU_RX_ENABLED: "n"
+      # --- LWIP trimming
+      CONFIG_LWIP_STATS: "n"
+      CONFIG_LWIP_NETIF_LOOPBACK: "n"
+  # --- VFS trimming
+  disable_vfs_support_termios: true
+  disable_vfs_support_select: true
   
 logger:
 
@@ -50,6 +64,9 @@ web_server:
   version: 3
   log: false
   ota: false
+
+esp32_ble:
+  disable_bt_logs: true
 
 bluetooth_proxy:
   active: false
@@ -174,84 +191,26 @@ light:
     effects:
       - addressable_rainbow:
           name: Rainbow
-      - addressable_rainbow:
-          name: Rainbow Fast
-          speed: 10
       - addressable_color_wipe:
           name: Color Wipe
-      - addressable_color_wipe:
-          name: Color Wipe Reverse
-          reverse: true
       - addressable_twinkle:
           name: Twinkle
-          twinkle_probability: 5%
-          progress_interval: 4ms
-      - addressable_random_twinkle:
-          name: Random Twinkle
       - addressable_scan:
           name: Scanner
           move_interval: 50ms
-      - addressable_fireworks:
-          name: Fireworks
-          update_interval: 32ms
-          spark_probability: 10%
-          fade_out_rate: 120
-      - addressable_flicker:
-          name: Flicker
-          intensity: 5%
       - pulse:
           name: Pulse
-          transition_length: 1200ms
-          update_interval: 1200ms
+          transition_length: 1000ms
+          update_interval: 1000ms
       - pulse:
           name: Pulse Fast
-          transition_length: 600ms
-          update_interval: 600ms
+          transition_length: 500ms
+          update_interval: 500ms
       - random:
           name: Random Colors
-      - addressable_color_wipe:
-          name: Dual Color Wipe
-          colors:
-            - red: 100%
-              green: 0%
-              blue: 0%
-              num_leds: 32
-            - red: 0%
-              green: 0%
-              blue: 100%
-              num_leds: 32
-      - addressable_color_wipe:
-          name: Soft White Sweep
-          colors:
-            - red: 100%
-              green: 70%
-              blue: 45%
-              num_leds: 32
-            - red: 20%
-              green: 10%
-              blue: 5%
-              num_leds: 32
-      - addressable_flicker:
-          name: Candle Light
-          intensity: 8%
-      - addressable_fireworks:
-          name: Fireplace
-          update_interval: 64ms
-          spark_probability: 3%
-          fade_out_rate: 90
-      - addressable_rainbow:
-          name: Party Rainbow
-          speed: 5
       - addressable_scan:
           name: Energy Beam
           move_interval: 20ms
-      - addressable_random_twinkle:
-          name: Galaxy
-      - addressable_fireworks:
-          name: Spark Storm
-          update_interval: 16ms
-          spark_probability: 20%
-          fade_out_rate: 160
 
 # --------------------------------------------------------------------
 # LED system scripts (AP + WiFi feedback + clamp)
