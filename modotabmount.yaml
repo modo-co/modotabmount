@@ -1,5 +1,5 @@
 esphome:
- name: modotabmount
+  name: modotabmount
   friendly_name: Modo Tab Mount
   name_add_mac_suffix: true
 
