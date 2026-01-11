@@ -22,11 +22,8 @@ esp32:
     type: esp-idf
     sdkconfig_options:
       CONFIG_ESP_TASK_WDT_TIMEOUT_S: "10"
-      # --- Big flash wins
       CONFIG_COMPILER_OPTIMIZATION_SIZE: "y"
-      CONFIG_NEWLIB_NANO_FORMAT: "y"
       CONFIG_COMPILER_ASSERTIONS_DISABLE: "y"
-      # --- LWIP trimming
       CONFIG_LWIP_STATS: "n"
       CONFIG_LWIP_NETIF_LOOPBACK: "n"
   
