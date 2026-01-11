@@ -33,9 +33,6 @@ esp32:
       # --- LWIP trimming
       CONFIG_LWIP_STATS: "n"
       CONFIG_LWIP_NETIF_LOOPBACK: "n"
-    # --- VFS trimming
-    disable_vfs_support_termios: true
-    disable_vfs_support_select: true
   
 logger:
 
