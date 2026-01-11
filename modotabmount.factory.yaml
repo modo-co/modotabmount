@@ -44,6 +44,7 @@ update:
     device_class: firmware
     entity_category: diagnostic
     icon: "mdi:chip"
+    check_interval: never
 
 button:
   - platform: factory_reset
