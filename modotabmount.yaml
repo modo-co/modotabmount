@@ -47,16 +47,6 @@ wifi:
       - script.execute: led_wifi_connected   # 3× green flash
      
 captive_portal:
-  on_start:
-    then:
-      - logger.log: "📶 AP started — enabling setup LED"
-      - script.execute: led_ap_mode
-
-  on_stop:
-    then:
-      - logger.log: "📶 AP stopped — disabling setup LED"
-      - script.execute: led_ap_mode_stop
-
 
 ota:
   - platform: esphome
