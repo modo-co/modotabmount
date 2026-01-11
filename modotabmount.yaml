@@ -29,7 +29,7 @@ esp32:
       # --- Wi-Fi (mostly RAM, keep conservative)
       CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM: "4"
       CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM: "8"
-      CONFIG_ESP_WIFI_AMPDU_RX_ENABLED: "n"
+      CONFIG_ESP_WIFI_AMPDU_RX_ENABLED: "y"
       # --- LWIP trimming
       CONFIG_LWIP_STATS: "n"
       CONFIG_LWIP_NETIF_LOOPBACK: "n"
