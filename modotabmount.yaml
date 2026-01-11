@@ -22,11 +22,6 @@ network:
 api:
 
 wifi:
-  on_ap_start:
-    then:
-      - logger.log: "📶 AP started — enabling setup LED"
-      - script.execute: led_ap_mode
-
   on_connect:
     then:
       - logger.log: "✅ WiFi connected — stopping setup LED"
@@ -42,6 +37,16 @@ wifi:
           }
      
 captive_portal:
+  on_start:
+    then:
+      - logger.log: "📶 AP started — enabling setup LED"
+      - script.execute: led_ap_mode
+
+  on_stop:
+    then:
+      - logger.log: "📶 AP stopped — disabling setup LED"
+      - script.execute: led_ap_mode_stop
+
 
 ota:
   - platform: esphome
