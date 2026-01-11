@@ -75,12 +75,7 @@ i2c:
 # --------------------------------------------------------------------
 # Globals
 # --------------------------------------------------------------------
-globals:
-  - id: ble_enabled
-    type: bool
-    restore_value: yes
-    initial_value: 'true'
-  
+globals: 
   - id: prev_led_brightness
     type: float
     restore_value: no
