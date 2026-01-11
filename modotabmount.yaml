@@ -43,14 +43,10 @@ wifi:
       - logger.log: "WiFi connected"
       - script.execute: led_ap_mode_stop
       - script.execute: led_wifi_connected
-      - lambda: |-
-          if (id(delayed_firmware_check) != nullptr) {
-            ESP_LOGI("ota", "Factory firmware → scheduling OTA");
-            id(delayed_firmware_check).execute();
-          } else {
-            ESP_LOGI("ota", "Adopted firmware → no OTA");
-          }
-     
+      - delay: 5s
+      - logger.log: "Checking for OTA update"
+      - lambda: id(ota_http_request).check();      
+           
 captive_portal:
 
 ota:
