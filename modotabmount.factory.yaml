@@ -44,6 +44,7 @@ update:
     device_class: firmware
     entity_category: diagnostic
     icon: "mdi:chip"
+    internal: true
 
 button:
   - platform: factory_reset
@@ -53,6 +54,9 @@ button:
 
 script:
   - id: delayed_firmware_check
+    mode: restart
     then:
-      - logger.log: "OTA: delayed firmware check"
+      - logger.log: "OTA: script started"
+      - delay: 30s
+      - logger.log: "OTA: performing update"
       - update.perform: update_http_request
