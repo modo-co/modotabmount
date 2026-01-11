@@ -4,20 +4,16 @@ esphome:
   name_add_mac_suffix: true
 
   on_boot:
-  # --- AP / Wi-Fi LED indication
-    - priority: -100
+    - priority:
       then:
-        - if:
-            condition:
-              lambda: |-
-                return !wifi::global_wifi_component->is_connected() &&
-                       wifi::global_wifi_component->has_ap();
-            then:
-              - logger.log: "📶 Access Point active — enabling setup LED Scanner effect"
-              - script.execute: led_ap_mode
-            else:
-              - logger.log: "✅ Wi-Fi connected — disabling setup LED"
-              - script.execute: led_ap_mode_stop
+        - lambda: |-
+            // Check if there are ANY credentials stored in the WiFi component
+            if (wifi::global_wifi_component->get_sta().get_ssid().empty()) {
+              ESP_LOGI("main", "Factory state detected: No WiFi credentials. Starting scanner.");
+              id(led_ap_mode).execute();
+            } else {
+              ESP_LOGI("main", "Credentials found. Waiting for WiFi connection...");
+            }
 
 esp32:
   board: esp32-c3-devkitm-1
