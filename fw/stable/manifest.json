@@ -1,6 +1,6 @@
 {
   "name": "modoco.modotabmount",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "home_assistant_domain": "esphome",
   "new_install_prompt_erase": false,
   "builds": [
