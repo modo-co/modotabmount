@@ -603,13 +603,3 @@ interval:
             id(power_accum) = id(current_accum) = id(voltage_accum) = 0;
             id(sample_count) = 0;
           }
-
-# --------------------------------------------------------------------
-# Helpers
-# --------------------------------------------------------------------
-binary_sensor:
-  - platform: template
-    id: led_power_low
-    internal: true
-    lambda: |-
-      return id(ina_power).state < 7.5;
