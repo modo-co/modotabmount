@@ -24,7 +24,8 @@ esp32:
       CONFIG_ESP_TASK_WDT_TIMEOUT_S: "10"
   
 logger:
-
+  level: INFO
+  
 debug:
   update_interval: 10s
 
