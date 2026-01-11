@@ -138,6 +138,7 @@ switch:
   - platform: template
     name: "Bluetooth Enabled"
     id: bluetooth_switch
+    optimistic: true
     restore_mode: RESTORE_DEFAULT_ON
 
     # When turned off, disable the BLE radio entirely
