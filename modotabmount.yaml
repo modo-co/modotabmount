@@ -55,11 +55,11 @@ web_server:
 esp32_ble:
   disable_bt_logs: true
 
-#bluetooth_proxy:
-#  id: bt_proxy
-#  active: false
-#  connection_slots: 1
-#  cache_services: false
+bluetooth_proxy:
+  id: bt_proxy
+  active: false
+  connection_slots: 1
+  cache_services: false
 
 i2c:
   sda: 7
@@ -129,22 +129,24 @@ output:
 # --------------------------------------------------------------------
 switch:
 
-  #- platform: template
-  #  name: "Bluetooth Enabled"
-  #  id: bluetooth_switch
-  #  optimistic: true
-  #  restore_mode: ALWAYS_ON
+  - platform: template
+    name: "Bluetooth Enabled"
+    id: bluetooth_switch
+    optimistic: true
+    restore_mode: ALWAYS_ON
+    entity_category: config
+    icon: "mdi:bluetooth-off"
 
-    # When turned off, disable the BLE radio entirely
-    #on_turn_off:
-    #  then:
-    #    - ble.disable:
-    #    - logger.log: "Bluetooth radio disabled"
+    # When turned off, disable the BLE radio
+    on_turn_off:
+      then:
+        - ble.disable:
+        - logger.log: "Bluetooth radio disabled"
 
     # When turned on, enable the BLE radio on boot
-    #on_turn_on:
-    #  then:
-    #    - logger.log: "Bluetooth radio enabled"
+    on_turn_on:
+      then:
+        - logger.log: "Bluetooth radio enabled - reboot"
   
   - platform: template
     id: tablet_charging
