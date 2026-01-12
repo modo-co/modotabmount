@@ -434,12 +434,15 @@ sensor:
     free:
       name: "Heap Free"
       icon: "mdi:memory"
+      disabled_by_default: true
     block:
       name: "Heap Max Block"
       icon: "mdi:memory"
+      disabled_by_default: true
     loop_time:
       name: "Loop Time"
       icon: "mdi:timer-outline"
+      disabled_by_default: true
 
 # --------------------------------------------------------------------
 # ⚙️ Configuration
@@ -509,6 +512,7 @@ number:
     unit_of_measurement: "s"
     icon: "mdi:timer-outline"
     entity_category: config
+    disabled_by_default: true
 
 button:
   - platform: restart
