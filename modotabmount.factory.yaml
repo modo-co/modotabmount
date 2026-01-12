@@ -40,7 +40,7 @@ update:
   - platform: http_request
     name: MTM Firmware
     id: update_http_request
-    source: https://raw.githubusercontent.com/modo-co/modotabmount/refs/heads/main/fw/stable/manifest.json
+    source: https://github.com/modo-co/modotabmount/releases/latest/manifest.json
     update_interval: 12h
     device_class: firmware
     entity_category: diagnostic
