@@ -8,7 +8,7 @@
       "chipFamily": "ESP32-C3",
       "ota": {
         "path": "modotabmount-esp32c3.ota.bin",
-        "md5": "9ae5c6814b079d916ae3de9e4045a471",
+        "md5": "386e53f44012a03b975c05395cb397dd",
         "release_url": "https://github.com/modo-co/modotabmount/releases/tag/1.0.8"
       },
       "parts": [
