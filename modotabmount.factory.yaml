@@ -28,8 +28,8 @@ improv_serial:
 # Used to pull OTA updates
 http_request:
   verify_ssl: false
-  buffer_size_rx: 512
-  buffer_size_tx: 512
+  buffer_size_rx: 2048
+  buffer_size_tx: 2048
 
 ota:
   - platform: esphome
