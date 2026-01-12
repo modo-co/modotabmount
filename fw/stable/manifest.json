@@ -1,7 +1,22 @@
 {
+  "name": "modoco.modotabmount",
   "version": "1.0.8",
-  "ota": {
-    "url": "https://github.com/modo-co/modotabmount/releases/download/1.0.8/modotabmount-esp32c3.ota.bin",
-    "sha256": "894f1cac3fe0b0693a55e589a0a56e3b7056903907162893f20b2479677817f4"
-  }
+  "home_assistant_domain": "esphome",
+  "new_install_prompt_erase": false,
+  "builds": [
+    {
+      "chipFamily": "ESP32-C3",
+      "ota": {
+        "path": "modotabmount-esp32c3.ota.bin",
+        "md5": "386e53f44012a03b975c05395cb397dd",
+        "release_url": "https://github.com/modo-co/modotabmount/releases/tag/1.0.8"
+      },
+      "parts": [
+        {
+          "path": "modotabmount-esp32c3.factory.bin",
+          "offset": 0
+        }
+      ]
+    }
+  ]
 }
