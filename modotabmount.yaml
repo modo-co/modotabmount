@@ -3,7 +3,7 @@ esphome:
   friendly_name: Modo Tab Mount
   name_add_mac_suffix: true
   includes:
-    - mdns.h
+    - "<mdns.h>"
 
   on_boot:
     - priority: 250.0
