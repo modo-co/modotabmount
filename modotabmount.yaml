@@ -40,6 +40,13 @@ wifi:
       - logger.log: "WiFi connected"
       - script.execute: led_ap_mode_stop
       - script.execute: led_wifi_connected
+      - logger.log:
+          level: INFO
+          format: "Wi-Fi connected — scheduling firmware update check in 15s"
+      - delay: 15s
+      - lambda: |-
+          ESP_LOGI("main", "Firmware update check after Wi-Fi connect");
+          id(update_http_request).check();
            
 captive_portal:
 
