@@ -29,18 +29,25 @@ debug:
   update_interval: 10s
 
 network:
+  enable_high_performance: true
 
 mdns:
+  id: my_mdns
 
 api:
 
 wifi:
-
+  
+  power_save_mode: none
+  
   on_connect:
     then:
       - logger.log: "WiFi connected"
       - script.execute: led_ap_mode_stop
       - script.execute: led_wifi_connected
+      - lambda: |-
+          id(my_mdns).setup();
+          ESP_LOGI("custom", "mDNS re-initialized manually after WiFi connect");
            
 captive_portal:
 
