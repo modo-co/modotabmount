@@ -31,6 +31,8 @@ debug:
 
 network:
 
+mdns:
+
 api:
 
 wifi:
