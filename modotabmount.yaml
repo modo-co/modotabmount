@@ -104,7 +104,6 @@ globals:
     restore_value: no
     initial_value: '0'
 
-  # clamp state (replaces old "led_dimmed_by_charge" loop)
   - id: led_clamp_active
     type: bool
     restore_value: no
@@ -464,6 +463,7 @@ number:
     unit_of_measurement: "%"
     icon: "mdi:lightning-bolt"
     entity_category: config
+    disabled_by_default: true
 
   - platform: template
     name: "Max ESP32 Temp."
@@ -490,6 +490,7 @@ number:
     unit_of_measurement: "ratio"
     icon: "mdi:flash-outline"
     entity_category: config
+    disabled_by_default: true
 
   - platform: template
     name: "Charging LED Dim Level"
