@@ -36,9 +36,13 @@ api:
 
 wifi:
   ap:
+    ssid: "ModoTabMount Setup"
+  
   on_connect:
     then:
       - logger.log: "WiFi connected"
+      - delay: 2s
+      - wifi.disable_ap:
       - script.execute: led_ap_mode_stop
       - script.execute: led_wifi_connected
       - logger.log:
