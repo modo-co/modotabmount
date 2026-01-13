@@ -46,8 +46,13 @@ wifi:
       - script.execute: led_ap_mode_stop
       - script.execute: led_wifi_connected
       - lambda: |-
-          id(my_mdns).setup();
-          ESP_LOGI("custom", "mDNS re-initialized manually after WiFi connect");
+          std::string final_name = App.get_name();
+          ESP_LOGI("custom", "Re-initializing mDNS for: %s", final_name.c_str());
+          mdns_free(); 
+          mdns_init();
+          mdns_hostname_set(final_name.c_str());
+          mdns_service_add(NULL, "_esphomelib", "_tcp", 6053, NULL, 0);
+          mdns_service_add(NULL, "_http", "_tcp", 80, NULL, 0);
            
 captive_portal:
 
