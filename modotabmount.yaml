@@ -2,6 +2,8 @@ esphome:
   name: modotabmount
   friendly_name: Modo Tab Mount
   name_add_mac_suffix: true
+  includes:
+    - mdns.h
 
   on_boot:
     - priority: 250.0
@@ -37,9 +39,8 @@ mdns:
 api:
 
 wifi:
-  
-  power_save_mode: none
   ap:
+  power_save_mode: none
   on_connect:
     then:
       - logger.log: "WiFi connected"
