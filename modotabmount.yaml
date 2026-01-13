@@ -39,7 +39,7 @@ api:
 wifi:
   
   power_save_mode: none
-  
+  ap:
   on_connect:
     then:
       - logger.log: "WiFi connected"
