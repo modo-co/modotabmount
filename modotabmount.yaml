@@ -44,21 +44,18 @@ wifi:
       - script.execute: led_ap_mode_stop
       - script.execute: led_wifi_connected
       
-      # Apply saved BLE preference only after Wi-Fi is connected
       - if:
           condition:
             lambda: 'return !id(ble_enabled);'
           then:
             - ble.disable:
             - logger.log: "Bluetooth disabled (user preference)"
-            - text_sensor.publish_state:
-                id: bluetooth_status
-                state: "Disabled"
+            - id: bluetooth_status
+              state: "Disabled"
           else:
             - logger.log: "Bluetooth enabled (default or user preference)"
-            - text_sensor.publish_state:
-                id: bluetooth_status
-                state: "Enabled"
+            - id: bluetooth_status
+              state: "Enabled"
 
 captive_portal:
 
