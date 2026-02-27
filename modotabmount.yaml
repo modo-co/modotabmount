@@ -171,10 +171,7 @@ switch:
       - logger.log: "Bluetooth radio disabled"
       - text_sensor.template.publish:
           id: bluetooth_status
-          state: "Disabled - rebooting in 5 seconds"    # ← must be quoted
-      - delay: 5s
-      - button.press:
-          id: restart_button
+          state: "Disabled"    # ← must be quoted
 
   - platform: template
     id: tablet_charging
