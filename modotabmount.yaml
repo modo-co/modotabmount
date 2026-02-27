@@ -89,11 +89,6 @@ i2c:
   scan: false
 
 # Globals
-globals:
-  - id: enable_fw_check
-    type: bool
-    restore_value: no
-    initial_value: ${fw_check_default}
   - id: prev_led_brightness
     type: float
     restore_value: no
