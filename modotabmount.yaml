@@ -88,7 +88,7 @@ i2c:
   scl: 21
   scan: false
 
-# Globals
+globals:
   - id: prev_led_brightness
     type: float
     restore_value: no
