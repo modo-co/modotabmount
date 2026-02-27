@@ -235,21 +235,9 @@ script:
   - id: delayed_fw_check
     mode: single
     then:
-      - delay: 60s
-      - if:
-          condition:
-            lambda: |-
-              return id(ha_api).is_encryption_enabled();
-          then:
-            - logger.log:
-                level: INFO
-                format: "API encryption enabled → likely adopted → skipping update check"
-          else:
-            - logger.log:
-                level: INFO
-                format: "No API encryption → likely not adopted → update check"
-            - update.perform:
-                id: update_http_request
+      - logger.log:
+          level: DEBUG
+          format: "No firmware check in this build"
             
   - id: delayed_ble_disable
     mode: single
