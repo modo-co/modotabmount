@@ -79,9 +79,6 @@ script:
       # Small delay so network stack fully settles
       - delay: 60s
 
-      - logger.log:
-          level: INFO
-          format: "Factory firmware -> running update check"
-
-      - update.perform:
-          id: update_http_request
+      - lambda: |-
+          ESP_LOGI("main", "Delayed firmware update check");
+          id(update_http_request).check();
