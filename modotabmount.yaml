@@ -34,6 +34,7 @@ mdns:
   id: my_mdns
 
 api:
+  id: ha_api
 
 wifi:
   ap:
@@ -238,7 +239,7 @@ script:
       - if:
           condition:
             lambda: |-
-              return id(api).is_encryption_enabled();
+              return id(ha_api).is_encryption_enabled();
           then:
             - logger.log:
                 level: INFO
