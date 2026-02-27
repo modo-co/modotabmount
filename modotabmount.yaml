@@ -44,15 +44,18 @@ wifi:
       - script.execute: led_ap_mode_stop
       - script.execute: led_wifi_connected
 
+      # Show boot/default state
+      - text_sensor.template.publish:
+          id: bluetooth_status
+          state: "Enabled (boot default)"
+
+      # Queue delayed disable if needed
       - if:
           condition:
             lambda: 'return !id(ble_enabled);'
           then:
-            - ble.disable:
-            - logger.log: "Bluetooth disabled (user preference)"
-            - text_sensor.template.publish:
-                id: bluetooth_status
-                state: "Disabled"
+            - script.execute: delayed_ble_disable
+            - logger.log: "Queued delayed BLE disable (45s after connect)"
           else:
             - logger.log: "Bluetooth enabled (default or user preference)"
             - text_sensor.template.publish:
@@ -230,6 +233,16 @@ light:
 
 # Scripts
 script:
+  - id: delayed_ble_disable
+    mode: single
+    then:
+      - delay: 45s
+      - ble.disable:
+      - logger.log: "Delayed BLE disable executed"
+      - text_sensor.template.publish:
+          id: bluetooth_status
+          state: "Disabled"
+                
   - id: led_apply_clamp_deferred
     mode: restart
     then:
