@@ -43,7 +43,8 @@ wifi:
       - logger.log: "WiFi connected"
       - script.execute: led_ap_mode_stop
       - script.execute: led_wifi_connected
-
+      - script.execute: delayed_fw_check 
+      
       # Show boot/default state
       - text_sensor.template.publish:
           id: bluetooth_status
@@ -230,6 +231,25 @@ light:
 
 # Scripts
 script:
+  - id: delayed_fw_check
+    mode: single
+    then:
+      - delay: 60s
+      - if:
+          condition:
+            lambda: |-
+              return id(api).is_encryption_enabled();
+          then:
+            - logger.log:
+                level: INFO
+                format: "API encryption enabled → likely adopted → skipping update check"
+          else:
+            - logger.log:
+                level: INFO
+                format: "No API encryption → likely not adopted → update check"
+            - update.perform:
+                id: update_http_request
+            
   - id: delayed_ble_disable
     mode: single
     then:
