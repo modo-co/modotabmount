@@ -43,24 +43,26 @@ wifi:
       - logger.log: "WiFi connected"
       - script.execute: led_ap_mode_stop
       - script.execute: led_wifi_connected
-      
+
       - if:
           condition:
             lambda: 'return !id(ble_enabled);'
           then:
             - ble.disable:
             - logger.log: "Bluetooth disabled (user preference)"
-            - id: bluetooth_status
-              state: "Disabled"
+            - text_sensor.template.publish:
+                id: bluetooth_status
+                state: "Disabled"
           else:
             - logger.log: "Bluetooth enabled (default or user preference)"
-            - id: bluetooth_status
-              state: "Enabled"
+            - text_sensor.template.publish:
+                id: bluetooth_status
+                state: "Enabled"
 
 captive_portal:
 
 ota:
-  - platform: esphome
+  platform: esphome
 
 web_server:
   port: 80
@@ -82,9 +84,7 @@ i2c:
   scl: 21
   scan: false
 
-# ────────────────────────────────────────────────────────────────
 # Globals
-# ────────────────────────────────────────────────────────────────
 globals:
   - id: prev_led_brightness
     type: float
@@ -135,18 +135,14 @@ globals:
     restore_value: no
     initial_value: '""'
 
-# ────────────────────────────────────────────────────────────────
-# Outputs
-# ────────────────────────────────────────────────────────────────
+# PWM output
 output:
   - platform: ledc
     pin: 6
     id: tablet_pwm
     frequency: 1000 Hz
 
-# ────────────────────────────────────────────────────────────────
 # Switches
-# ────────────────────────────────────────────────────────────────
 switch:
   - platform: template
     name: "Bluetooth Enabled"
@@ -159,28 +155,30 @@ switch:
     turn_on_action:
       - lambda: 'id(ble_enabled) = true;'
       - logger.log: "Bluetooth radio enabled"
-      - text_sensor.publish_state:
+      - text_sensor.template.publish:
           id: bluetooth_status
-          state: "Enabled - rebooting in 5 seconds"
+          state: "Enabled - rebooting in 5 seconds"     # ← must be quoted
       - delay: 5s
-      - restart:
+      - button.press:
+          id: restart_button
 
     turn_off_action:
       - ble.disable:
       - lambda: 'id(ble_enabled) = false;'
       - logger.log: "Bluetooth radio disabled"
-      - text_sensor.publish_state:
+      - text_sensor.template.publish:
           id: bluetooth_status
-          state: "Disabled - rebooting in 5 seconds"
+          state: "Disabled - rebooting in 5 seconds"    # ← must be quoted
       - delay: 5s
-      - restart:
+      - button.press:
+          id: restart_button
 
   - platform: template
     id: tablet_charging
     name: "Tablet Charging"
     icon: "mdi:tablet-cellphone"
     optimistic: true
-    restore_mode: RESTORE_DEFAULT_ON          # ← changed: restore last state, default ON
+    restore_mode: RESTORE_DEFAULT_ON
     on_turn_on:
       - script.execute: led_apply_clamp_deferred
     on_turn_off:
@@ -193,9 +191,7 @@ switch:
           }
           id(led_clamp_active) = false;
 
-# ────────────────────────────────────────────────────────────────
 # Light
-# ────────────────────────────────────────────────────────────────
 light:
   - platform: esp32_rmt_led_strip
     id: addressable_led
@@ -232,9 +228,7 @@ light:
           name: Energy Beam
           move_interval: 20ms
 
-# ────────────────────────────────────────────────────────────────
 # Scripts
-# ────────────────────────────────────────────────────────────────
 script:
   - id: led_apply_clamp_deferred
     mode: restart
@@ -380,17 +374,11 @@ script:
             id(sample_count) = 0;
           }
 
-# ────────────────────────────────────────────────────────────────
-# Interval
-# ────────────────────────────────────────────────────────────────
 interval:
   - interval: 1s
     then:
       - script.execute: control_logic
 
-# ────────────────────────────────────────────────────────────────
-# Text sensors
-# ────────────────────────────────────────────────────────────────
 text_sensor:
   - platform: template
     name: "Charging Status"
@@ -411,9 +399,6 @@ text_sensor:
     reset_reason:
       name: "Device Reset Reason"
 
-# ────────────────────────────────────────────────────────────────
-# Sensors
-# ────────────────────────────────────────────────────────────────
 sensor:
   - platform: template
     name: "Bus Voltage"
@@ -514,9 +499,6 @@ sensor:
     icon: "mdi:wifi"
     entity_category: diagnostic
 
-# ────────────────────────────────────────────────────────────────
-# Numbers & Buttons
-# ────────────────────────────────────────────────────────────────
 number:
   - platform: template
     name: "Charging Power"
