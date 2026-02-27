@@ -84,4 +84,4 @@ script:
           format: "Factory firmware -> running update check"
 
       - update.perform:
-          id: update_http_reques
+          id: update_http_request
