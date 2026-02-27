@@ -70,13 +70,8 @@ script:
   - id: delayed_fw_check
     mode: single
     then:
-      # Wait until WiFi is actually connected
-      - wait_until:
-          condition:
-            wifi.connected
-          timeout: 2min
-
-      # Small delay so network stack fully settles
+    
+      # Delay so network stack fully settles
       - delay: 60s
 
       - lambda: |-
