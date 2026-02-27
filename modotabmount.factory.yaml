@@ -61,3 +61,18 @@ button:
       - lambda: |-
           ESP_LOGI("main", "Manual update check triggered via button.");
           id(update_http_request).check();
+
+script:
+  - id: delayed_fw_check
+    mode: restart
+    then:
+      - wait_until:
+          condition:
+            wifi.connected
+          timeout: 2min
+      - delay: 60s
+      - logger.log:
+          level: INFO
+          format: "Factory firmware -> running update check"
+      - update.perform:
+          id: update_http_request
