@@ -33,9 +33,6 @@ network:
 mdns:
   id: my_mdns
 
-substitutions:
-  fw_check_default: "false"
-
 api:
   id: ha_api
 
