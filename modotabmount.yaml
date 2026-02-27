@@ -412,6 +412,9 @@ text_sensor:
     reset_reason:
       name: "Device Reset Reason"
 
+# --------------------------------------------------------------------
+# Sensors
+# --------------------------------------------------------------------
 sensor:
   - platform: template
     name: "Bus Voltage"
@@ -421,7 +424,8 @@ sensor:
     icon: "mdi:flash"
     device_class: voltage
     state_class: measurement
-    lambda: 'return 0.0;'
+    lambda: |-
+      return 0.0;
     update_interval: never
 
   - platform: template
@@ -431,7 +435,8 @@ sensor:
     icon: "mdi:flash-triangle-outline"
     device_class: voltage
     state_class: measurement
-    lambda: 'return 0.0;'
+    lambda: |-
+      return 0.0;
     update_interval: never
     disabled_by_default: true
 
@@ -443,7 +448,8 @@ sensor:
     icon: "mdi:current-ac"
     device_class: current
     state_class: measurement
-    lambda: 'return 0.0;'
+    lambda: |-
+      return 0.0;
     update_interval: never
 
   - platform: template
@@ -453,7 +459,8 @@ sensor:
     icon: "mdi:current-dc"
     device_class: current
     state_class: measurement
-    lambda: 'return 0.0;'
+    lambda: |-
+      return 0.0;
     update_interval: never
     disabled_by_default: true
 
@@ -465,7 +472,8 @@ sensor:
     icon: "mdi:lightning-bolt"
     device_class: power
     state_class: measurement
-    lambda: 'return 0.0;'
+    lambda: |-
+      return 0.0;
     update_interval: never
 
   - platform: template
@@ -475,7 +483,8 @@ sensor:
     icon: "mdi:flash-alert-outline"
     device_class: power
     state_class: measurement
-    lambda: 'return 0.0;'
+    lambda: |-
+      return 0.0;
     update_interval: never
     disabled_by_default: true
 
@@ -493,6 +502,7 @@ sensor:
       internal: true
     update_interval: 1s
 
+  # --- Diagnostics ---
   - platform: internal_temperature
     name: "ESP32 Internal Temp"
     id: esp32_internal_temp
@@ -511,6 +521,20 @@ sensor:
     update_interval: 60s
     icon: "mdi:wifi"
     entity_category: diagnostic
+
+  - platform: debug
+    free:
+      name: "Heap Free"
+      icon: "mdi:memory"
+      disabled_by_default: true
+    block:
+      name: "Heap Max Block"
+      icon: "mdi:memory"
+      disabled_by_default: true
+    loop_time:
+      name: "Loop Time"
+      icon: "mdi:timer-outline"
+      disabled_by_default: true
 
 number:
   - platform: template
