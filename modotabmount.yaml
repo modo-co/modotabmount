@@ -241,7 +241,6 @@ light:
 script:
   - id: delayed_ble_disable
     mode: single
-    mode: restart
     then:
       - delay: 45s
       - ble.disable:
