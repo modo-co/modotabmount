@@ -68,7 +68,7 @@ button:
 
 script:
   - id: delayed_fw_check
-    mode: restart
+    mode: single
     then:
       # Wait until WiFi is actually connected
       - wait_until:
