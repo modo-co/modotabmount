@@ -29,9 +29,6 @@ esp32_improv:
 # Handy if your device has a usb port for the user to add credentials when they first get it.
 improv_serial:
 
-substitutions:
-  fw_check_default: "true"
-
 # Used to pull OTA updates
 http_request:
   verify_ssl: false
