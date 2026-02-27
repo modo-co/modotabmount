@@ -239,6 +239,17 @@ light:
 
 # Scripts
 script:
+  - id: delayed_ble_disable
+    mode: single
+    mode: restart
+    then:
+      - delay: 45s
+      - ble.disable:
+      - logger.log: "Delayed BLE disable executed"
+      - text_sensor.template.publish:
+          id: bluetooth_status
+          state: "Disabled"
+  
   - id: delayed_fw_check
     mode: restart
     then:
