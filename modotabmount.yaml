@@ -47,7 +47,6 @@ wifi:
       - logger.log: "WiFi connected"
       - script.execute: led_ap_mode_stop
       - script.execute: led_wifi_connected
-      - script.execute: delayed_fw_check 
       
       # Show boot/default state
       - text_sensor.template.publish:
@@ -248,28 +247,7 @@ script:
       - text_sensor.template.publish:
           id: bluetooth_status
           state: "Disabled"
-  
-  - id: delayed_fw_check
-    mode: restart
-    then:
-      - if:
-          condition:
-            lambda: 'return id(enable_fw_check);'
-          then:
-            - wait_until:
-                condition:
-                  wifi.connected
-                timeout: 2min
-            - delay: 45s
-            - lambda: |-
-                auto *upd = App.get_component<esphome::update::UpdateComponent>("update_http_request");
-                if (upd != nullptr) {
-                  ESP_LOGI("fw", "Factory -> running update check");
-                  upd->perform();
-                } else {
-                  ESP_LOGI("fw", "No update component present -> skipping");
-                }
-                
+                  
   - id: led_apply_clamp_deferred
     mode: restart
     then:
