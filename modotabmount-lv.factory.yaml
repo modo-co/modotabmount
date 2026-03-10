@@ -8,7 +8,7 @@ esphome:
   # configuration and updates.
   project:
     name: modoco.modotabmount-lv
-    version: "1.0.5"
+    version: "1.0.6"
   on_boot:
     priority: -10
     then:
