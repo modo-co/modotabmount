@@ -198,7 +198,7 @@ light:
     name: "LED"
     icon: "mdi:television-ambient-light"
     chipset: WS2812
-    pin: GPIO5
+    pin: GPIO3
     num_leds: 64
     rgb_order: GRB
     default_transition_length: 0s
