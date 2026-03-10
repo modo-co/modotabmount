@@ -178,7 +178,7 @@ switch:
     name: "Tablet Charging"
     icon: "mdi:tablet-cellphone"
     optimistic: true
-    restore_mode: RESTORE_DEFAULT_ON
+    restore_mode: RESTORE_DEFAULT_OFF
     on_turn_on:
       - script.execute: led_apply_clamp_deferred
     on_turn_off:
