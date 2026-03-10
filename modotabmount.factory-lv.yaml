@@ -1,0 +1,79 @@
+packages:
+  # Include all of the core configuration
+  core: !include modotabmount-lv.yaml
+
+esphome:
+  name: modotabmount-lv
+  # This will allow for project identification,
+  # configuration and updates.
+  project:
+    name: modoco.modotabmount-lv
+    version: "1.0.5"
+  on_boot:
+    priority: -10
+    then:
+      - script.execute: delayed_fw_check
+
+# This should point to the public location of the yaml file that will be adopted.
+# In this case it is the core yaml file that does not contain the extra things
+# that are provided by this factory yaml file as the user does not need these once adopted.
+dashboard_import:
+  package_import_url: github://modo-co/modotabmount/modotabmount-lv.yaml@main
+
+# Sets up Bluetooth LE (Only on ESP32) to allow the user
+# to provision wifi credentials to the device.
+esp32_improv:
+  authorizer: none
+
+# Sets up the improv via serial client for Wi-Fi provisioning.
+# Handy if your device has a usb port for the user to add credentials when they first get it.
+improv_serial:
+
+# Used to pull OTA updates
+http_request:
+  verify_ssl: false
+  buffer_size_rx: 2048
+  buffer_size_tx: 2048
+
+ota:
+  - platform: esphome
+  - platform: http_request
+    id: ota_http_request
+
+update:
+  - platform: http_request
+    name: MTM Firmware
+    id: update_http_request
+    source: https://github.com/modo-co/modotabmount/releases/latest/download/modotabmount-lv.manifest.json
+    update_interval: 12h
+    device_class: firmware
+    entity_category: diagnostic
+    icon: "mdi:chip"
+
+button:
+  - platform: factory_reset
+    name: "Reset to Factory Settings"
+    icon: "mdi:cog-refresh"
+    entity_category: config
+
+  - platform: template
+    name: "Check for FW Update"
+    id: btn_check_update
+    entity_category: diagnostic
+    icon: "mdi:refresh"
+    on_press:
+      - lambda: |-
+          ESP_LOGI("main", "Manual update check triggered via button.");
+          id(update_http_request).check();
+
+script:
+  - id: delayed_fw_check
+    mode: single
+    then:
+    
+      # Delay so network stack fully settles
+      - delay: 60s
+
+      - lambda: |-
+          ESP_LOGI("main", "Delayed firmware update check");
+          id(update_http_request).check();
