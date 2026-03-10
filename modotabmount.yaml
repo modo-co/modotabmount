@@ -14,6 +14,23 @@ esphome:
               ESP_LOGI("main", "Credentials found. Waiting for WiFi connection...");
             }
 
+        - delay: 500ms
+        - lambda: |-
+            if (id(shunt_multiplier) == 0.0) {
+
+              float v = fabs(id(ina_current).get_parent()->get_shunt_voltage());
+
+              ESP_LOGI("shunt", "Measured shunt voltage: %.6f V", v);
+
+              if (v < 0.002) {
+                id(shunt_multiplier) = 10.0;
+                ESP_LOGI("shunt", "Detected R010 shunt (0.01 ohm)");
+              } else {
+                id(shunt_multiplier) = 1.0;
+                ESP_LOGI("shunt", "Detected R100 shunt (0.1 ohm)");
+              }
+            }
+
 esp32:
   board: esp32-c3-devkitm-1
   variant: esp32c3
@@ -89,6 +106,10 @@ i2c:
   scan: false
 
 globals:
+  - id: shunt_multiplier
+    type: float
+    restore_value: yes
+    initial_value: '0.0'
   - id: prev_led_brightness
     type: float
     restore_value: no
@@ -367,13 +388,17 @@ script:
             id(last_status) = status;
           }
 
-          id(power_act).publish_state(id(ina_power).state);
-          id(current_act).publish_state(id(ina_current).state);
+          float current = id(ina_current).state * id(shunt_multiplier);
+          float power = id(ina_power).state * id(shunt_multiplier);
+
+          id(power_act).publish_state(power);
+          id(current_act).publish_state(current);
           id(voltage_act).publish_state(id(ina_voltage).state);
 
-          id(power_accum) += id(ina_power).state;
-          id(current_accum) += id(ina_current).state;
+          id(power_accum) += power;
+          id(current_accum) += current;
           id(voltage_accum) += id(ina_voltage).state;
+
           id(sample_count)++;
 
           if (id(sample_count) >= 30) {
