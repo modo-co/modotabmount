@@ -401,7 +401,7 @@ sensor:
 
   - platform: ina219
     address: 0x40
-    shunt_resistance: 0.01 ohm
+    shunt_resistance: 0.1 ohm
     current:
       id: ina_current
       internal: true
