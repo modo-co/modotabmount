@@ -156,6 +156,7 @@ switch:
     name: "Tablet Charging"
     icon: "mdi:tablet-cellphone"
     optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
 
     # apply clamp immediately if LED already on
     on_turn_on:
