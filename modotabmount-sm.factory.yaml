@@ -3,7 +3,7 @@ packages:
   core: !include modotabmount-sm.yaml
 
 esphome:
-  name: modotabmount
+  name: modotabmount-sm
   # This will allow for project identification,
   # configuration and updates.
   project:
