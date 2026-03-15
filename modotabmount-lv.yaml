@@ -44,13 +44,11 @@ wifi:
       - logger.log: "WiFi connected"
       - script.execute: led_ap_mode_stop
       - script.execute: led_wifi_connected
-      
-      # Show boot/default state
+
       - text_sensor.template.publish:
           id: bluetooth_status
           state: "Enabled (boot default)"
 
-      # Queue delayed disable if needed
       - if:
           condition:
             lambda: 'return !id(ble_enabled);'
@@ -89,64 +87,22 @@ i2c:
   scan: true
 
 globals:
-  - id: prev_led_brightness
-    type: float
-    restore_value: no
-    initial_value: '1.0'
-  - id: last_charging_state
+  - id: ble_enabled
     type: bool
-    restore_value: no
-    initial_value: 'false'
-  - id: power_accum
-    type: float
-    restore_value: no
-    initial_value: '0.0'
-  - id: current_accum
-    type: float
-    restore_value: no
-    initial_value: '0.0'
-  - id: voltage_accum
-    type: float
-    restore_value: no
-    initial_value: '0.0'
-  - id: sample_count
-    type: int
-    restore_value: no
-    initial_value: '0'
-  - id: led_clamp_active
-    type: bool
-    restore_value: no
+    restore_value: yes
     initial_value: 'false'
   - id: led_mode
     type: int
     restore_value: no
     initial_value: '0'
-  - id: ble_enabled
-    type: bool
-    restore_value: yes
-    initial_value: 'false'
-  - id: burst_phase
-    type: unsigned int
-    restore_value: no
-    initial_value: '0'
-  - id: cooling
-    type: bool
-    restore_value: no
-    initial_value: 'false'
-  - id: last_status
-    type: const char*
-    restore_value: no
-    initial_value: '""'
 
-# PWM output
-output:
-  - platform: ledc
-    pin: 10
-    id: tablet_pwm
-    frequency: 1000 Hz
-
-# Switches
 switch:
+  - platform: gpio
+    id: tablet_charging_hw
+    pin: GPIO10
+    internal: true
+    restore_mode: RESTORE_DEFAULT_ON
+
   - platform: template
     name: "Bluetooth Enabled"
     id: bluetooth_switch
@@ -160,10 +116,9 @@ switch:
       - logger.log: "Bluetooth radio enabled"
       - text_sensor.template.publish:
           id: bluetooth_status
-          state: "Enabled - rebooting in 5 seconds"     # ← must be quoted
+          state: "Enabled - rebooting in 5 seconds"
       - delay: 5s
-      - button.press:
-          id: restart_button
+      - button.press: restart_button
 
     turn_off_action:
       - ble.disable:
@@ -171,7 +126,7 @@ switch:
       - logger.log: "Bluetooth radio disabled"
       - text_sensor.template.publish:
           id: bluetooth_status
-          state: "Disabled"    # ← must be quoted
+          state: "Disabled"
 
   - platform: template
     id: tablet_charging
@@ -179,19 +134,19 @@ switch:
     icon: "mdi:tablet-cellphone"
     optimistic: true
     restore_mode: RESTORE_DEFAULT_ON
-    on_turn_on:
-      - script.execute: led_apply_clamp_deferred
-    on_turn_off:
-      - lambda: |-
-          if (!id(led_clamp_active)) return;
-          if (id(addressable_led).current_values.is_on()) {
-            auto call = id(addressable_led).turn_on();
-            call.set_brightness(id(prev_led_brightness));
-            call.perform();
-          }
-          id(led_clamp_active) = false;
+    lambda: |-
+      return id(tablet_charging_hw).state;
+    turn_on_action:
+      - switch.turn_on: tablet_charging_hw
+      - text_sensor.template.publish:
+          id: charging_status
+          state: "On"
+    turn_off_action:
+      - switch.turn_off: tablet_charging_hw
+      - text_sensor.template.publish:
+          id: charging_status
+          state: "Off"
 
-# Light
 light:
   - platform: esp32_rmt_led_strip
     id: addressable_led
@@ -202,8 +157,6 @@ light:
     num_leds: 64
     rgb_order: GRB
     default_transition_length: 0s
-    on_state:
-      - script.execute: led_apply_clamp_deferred
     effects:
       - addressable_rainbow:
           name: Rainbow
@@ -228,7 +181,6 @@ light:
           name: Energy Beam
           move_interval: 20ms
 
-# Scripts
 script:
   - id: delayed_ble_disable
     mode: single
@@ -239,30 +191,6 @@ script:
       - text_sensor.template.publish:
           id: bluetooth_status
           state: "Disabled"
-                  
-  - id: led_apply_clamp_deferred
-    mode: restart
-    then:
-      - delay: 0ms
-      - lambda: |-
-          if (id(led_mode) != 0) return;
-          if (!id(tablet_charging).state) return;
-          if (!id(addressable_led).current_values.is_on()) return;
-          float allowed = id(led_dim_level).state / 100.0f;
-          float current = id(addressable_led).current_values.get_brightness();
-          if (current < allowed - 0.01f) {
-            id(prev_led_brightness) = current;
-            id(led_clamp_active) = false;
-            return;
-          }
-          if (current <= allowed + 0.01f) return;
-          if (!id(led_clamp_active)) {
-            id(prev_led_brightness) = current;
-            id(led_clamp_active) = true;
-          }
-          auto call = id(addressable_led).turn_on();
-          call.set_brightness(allowed);
-          call.perform();
 
   - id: led_ap_mode
     mode: restart
@@ -310,85 +238,6 @@ script:
             - delay: 250ms
       - lambda: 'id(led_mode) = 0;'
 
-  - id: control_logic
-    mode: single
-    then:
-      - lambda: |-
-          uint32_t now = millis();
-          static uint32_t last_run = 0;
-          uint32_t interval_ms = (uint32_t)(id(control_interval).state * 1000.0f);
-
-          if (now - last_run < interval_ms) return;
-          last_run = now;
-
-          float temp = id(esp32_internal_temp).state;
-          bool charging_on = id(tablet_charging).state;
-
-          float max_temp_val = id(max_temp).state;
-          float limit_ratio = id(charging_limit_level).state / 100.0f;
-          float throttle = id(throttle_ratio).state;
-          float level = limit_ratio;
-          const char* status = "Normal";
-
-          if (!charging_on) {
-            level = 0.0f;
-            status = "Off";
-          } else if (temp >= max_temp_val + 3.0f) {
-            id(cooling) = true;
-            status = "Cooling Down";
-          } else if (id(cooling) && temp <= (max_temp_val - 3.0f)) {
-            id(cooling) = false;
-          }
-
-          if (charging_on && !id(cooling)) {
-            if (temp >= max_temp_val + 2.0f) {
-              status = "Thermal throttling 3";
-              if (id(burst_phase) < 3) level = throttle;
-              id(burst_phase) = (id(burst_phase) + 1) % 4;
-            } else if (temp >= max_temp_val) {
-              status = "Thermal throttling 2";
-              if (id(burst_phase) < 3) level = throttle;
-              id(burst_phase) = (id(burst_phase) + 1) % 5;
-            } else if (temp >= (max_temp_val - 3.0f)) {
-              status = "Thermal throttling 1";
-              if (id(burst_phase) < 2) level = throttle;
-              id(burst_phase) = (id(burst_phase) + 1) % 5;
-            } else {
-              status = "Normal";
-              level = limit_ratio;
-              id(burst_phase) = 0;
-            }
-          }
-
-          id(tablet_pwm).set_level(level);
-
-          if (strcmp(id(last_status), status) != 0) {
-            id(charging_status).publish_state(status);
-            id(last_status) = status;
-          }
-
-          id(power_act).publish_state(id(ina_power).state);
-          id(current_act).publish_state(id(ina_current).state);
-          id(voltage_act).publish_state(id(ina_voltage).state);
-
-          id(power_accum) += id(ina_power).state;
-          id(current_accum) += id(ina_current).state;
-          id(voltage_accum) += id(ina_voltage).state;
-          id(sample_count)++;
-
-          if (id(sample_count) >= 30) {
-            id(avg_power).publish_state(id(power_accum) / id(sample_count));
-            id(avg_current).publish_state(id(current_accum) / id(sample_count));
-            id(avg_voltage).publish_state(id(voltage_accum) / id(sample_count));
-            id(power_accum) = id(current_accum) = id(voltage_accum) = 0.0f;
-            id(sample_count) = 0;
-          }
-
-interval:
-  - interval: 1s
-    then:
-      - script.execute: control_logic
-
 text_sensor:
   - platform: template
     name: "Charging Status"
@@ -409,97 +258,36 @@ text_sensor:
     reset_reason:
       name: "Device Reset Reason"
 
-# --------------------------------------------------------------------
-# Sensors
-# --------------------------------------------------------------------
 sensor:
-  - platform: template
-    name: "Bus Voltage"
-    id: avg_voltage
-    unit_of_measurement: "V"
-    accuracy_decimals: 2
-    icon: "mdi:flash"
-    device_class: voltage
-    state_class: measurement
-    lambda: |-
-      return 0.0;
-    update_interval: never
-
-  - platform: template
-    name: "Bus Voltage Inst."
-    id: voltage_act
-    unit_of_measurement: "V"
-    icon: "mdi:flash-triangle-outline"
-    device_class: voltage
-    state_class: measurement
-    lambda: |-
-      return 0.0;
-    update_interval: never
-    disabled_by_default: true
-
-  - platform: template
-    name: "Current"
-    id: avg_current
-    unit_of_measurement: "A"
-    accuracy_decimals: 3
-    icon: "mdi:current-ac"
-    device_class: current
-    state_class: measurement
-    lambda: |-
-      return 0.0;
-    update_interval: never
-
-  - platform: template
-    name: "Output Current Inst."
-    id: current_act
-    unit_of_measurement: "A"
-    icon: "mdi:current-dc"
-    device_class: current
-    state_class: measurement
-    lambda: |-
-      return 0.0;
-    update_interval: never
-    disabled_by_default: true
-
-  - platform: template
-    name: "Power"
-    id: avg_power
-    unit_of_measurement: "W"
-    accuracy_decimals: 2
-    icon: "mdi:lightning-bolt"
-    device_class: power
-    state_class: measurement
-    lambda: |-
-      return 0.0;
-    update_interval: never
-
-  - platform: template
-    name: "Output Power Inst."
-    id: power_act
-    unit_of_measurement: "W"
-    icon: "mdi:flash-alert-outline"
-    device_class: power
-    state_class: measurement
-    lambda: |-
-      return 0.0;
-    update_interval: never
-    disabled_by_default: true
-
   - platform: ina219
     address: 0x40
     shunt_resistance: 0.1 ohm
     current:
+      name: "Current"
       id: ina_current
-      internal: true
+      unit_of_measurement: "A"
+      accuracy_decimals: 3
+      icon: "mdi:current-dc"
+      device_class: current
+      state_class: measurement
     power:
+      name: "Power"
       id: ina_power
-      internal: true
+      unit_of_measurement: "W"
+      accuracy_decimals: 2
+      icon: "mdi:lightning-bolt"
+      device_class: power
+      state_class: measurement
     bus_voltage:
+      name: "Bus Voltage"
       id: ina_voltage
-      internal: true
+      unit_of_measurement: "V"
+      accuracy_decimals: 2
+      icon: "mdi:flash"
+      device_class: voltage
+      state_class: measurement
     update_interval: 1s
 
-  # --- Diagnostics ---
   - platform: internal_temperature
     name: "ESP32 Internal Temp"
     id: esp32_internal_temp
@@ -532,75 +320,6 @@ sensor:
       name: "Loop Time"
       icon: "mdi:timer-outline"
       disabled_by_default: true
-
-number:
-  - platform: template
-    name: "Charging Power"
-    id: charging_limit_level
-    optimistic: true
-    min_value: 30
-    max_value: 100
-    step: 2
-    restore_value: true
-    initial_value: 100
-    unit_of_measurement: "%"
-    icon: "mdi:lightning-bolt"
-    entity_category: config
-    disabled_by_default: true
-
-  - platform: template
-    name: "Max ESP32 Temp."
-    id: max_temp
-    optimistic: true
-    restore_value: true
-    min_value: 70
-    max_value: 100
-    step: 1
-    initial_value: 85
-    unit_of_measurement: "°C"
-    icon: "mdi:thermometer"
-    entity_category: config
-
-  - platform: template
-    name: "Thermal Throttle Ratio"
-    id: throttle_ratio
-    optimistic: true
-    restore_value: true
-    min_value: 0.3
-    max_value: 0.95
-    step: 0.05
-    initial_value: 0.9
-    unit_of_measurement: "ratio"
-    icon: "mdi:flash-outline"
-    entity_category: config
-    disabled_by_default: true
-
-  - platform: template
-    name: "Charging LED Dim Level"
-    id: led_dim_level
-    optimistic: true
-    restore_value: true
-    min_value: 50
-    max_value: 100
-    step: 1
-    initial_value: 75
-    unit_of_measurement: "%"
-    icon: "mdi:brightness-6"
-    entity_category: config
-
-  - platform: template
-    name: "Control Interval"
-    id: control_interval
-    optimistic: true
-    restore_value: true
-    min_value: 1
-    max_value: 10
-    step: 1
-    initial_value: 1
-    unit_of_measurement: "s"
-    icon: "mdi:timer-outline"
-    entity_category: config
-    disabled_by_default: true
 
 button:
   - platform: restart
