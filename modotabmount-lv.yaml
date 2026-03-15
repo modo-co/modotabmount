@@ -261,7 +261,7 @@ text_sensor:
 sensor:
   - platform: ina219
     address: 0x40
-    shunt_resistance: 0.1 ohm
+    shunt_resistance: 0.01 ohm
     current:
       name: "Current"
       id: ina_current
