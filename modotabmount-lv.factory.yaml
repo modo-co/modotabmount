@@ -8,7 +8,7 @@ esphome:
   # configuration and updates.
   project:
     name: modoco.modotabmount-lv
-    version: "1.0.6"
+    version: "1.0.5"
   on_boot:
     priority: -10
     then:
@@ -44,7 +44,7 @@ update:
   - platform: http_request
     name: MTM Firmware
     id: update_http_request
-    source: https://github.com/modo-co/modotabmount/releases/latest/download/modotabmount.manifest.json
+    source: https://github.com/modo-co/modotabmount/releases/latest/download/modotabmount-lv.manifest.json
     update_interval: 12h
     device_class: firmware
     entity_category: diagnostic
