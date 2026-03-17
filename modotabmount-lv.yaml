@@ -274,7 +274,7 @@ sensor:
       name: "Power"
       id: ina_power
       unit_of_measurement: "W"
-      accuracy_decimals: 2
+      accuracy_decimals: 3
       icon: "mdi:lightning-bolt"
       device_class: power
       state_class: measurement
@@ -286,7 +286,7 @@ sensor:
       icon: "mdi:flash"
       device_class: voltage
       state_class: measurement
-    update_interval: 1s
+    update_interval: 5s
 
   - platform: internal_temperature
     name: "ESP32 Internal Temp"
