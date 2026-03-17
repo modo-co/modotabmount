@@ -77,14 +77,14 @@ esp32_ble:
 
 bluetooth_proxy:
   id: bt_proxy
-  active: true
+  active: false
   connection_slots: 1
   cache_services: false
 
 i2c:
   sda: GPIO4
   scl: GPIO5
-  scan: true
+  scan: false
 
 globals:
   - id: ble_enabled
