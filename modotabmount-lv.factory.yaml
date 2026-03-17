@@ -9,10 +9,6 @@ esphome:
   project:
     name: modoco.modotabmount-lv
     version: "1.0.5"
-  on_boot:
-    priority: -10
-    then:
-      - script.execute: delayed_fw_check
 
 # This should point to the public location of the yaml file that will be adopted.
 # In this case it is the core yaml file that does not contain the extra things
@@ -64,16 +60,4 @@ button:
     on_press:
       - lambda: |-
           ESP_LOGI("main", "Manual update check triggered via button.");
-          id(update_http_request).check();
-
-script:
-  - id: delayed_fw_check
-    mode: single
-    then:
-    
-      # Delay so network stack fully settles
-      - delay: 60s
-
-      - lambda: |-
-          ESP_LOGI("main", "Delayed firmware update check");
           id(update_http_request).check();
