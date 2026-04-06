@@ -100,11 +100,20 @@ globals:
     restore_value: no
     initial_value: '1.0'
 
-  - id: last_charging_state
+  - id: led_clamp_active
     type: bool
     restore_value: no
     initial_value: 'false'
 
+  - id: led_mode
+    type: int
+    restore_value: no
+    initial_value: '0'
+    # 0 = user
+    # 1 = ap_mode
+    # 2 = wifi_feedback
+
+  # --- Averaging ---
   - id: power_accum
     type: float
     restore_value: no
@@ -125,31 +134,26 @@ globals:
     restore_value: no
     initial_value: '0'
 
-  - id: led_clamp_active
-    type: bool
-    restore_value: no
-    initial_value: 'false'
-
-  # ownership to prevent clamp touching AP/WiFi feedback
-  - id: led_mode
-    type: int
-    restore_value: no
-    initial_value: '0'
-    # 0 = user
-    # 1 = ap_mode
-    # 2 = wifi_feedback
-
 # --------------------------------------------------------------------
 # ⚡ Charging control
 # --------------------------------------------------------------------
 
 switch:
-  - platform: gpio
-    pin: GPIO10
-    id: tablet_charging
-    name: "Tablet Charging"
-    internal: false
-    restore_mode: RESTORE_DEFAULT_ON
+- platform: gpio
+  pin: GPIO10
+  id: tablet_charging
+  name: "Tablet Charging"
+  internal: false
+  restore_mode: RESTORE_DEFAULT_ON
+
+  on_turn_on:
+    then:
+      - logger.log: "Charging ON"
+      - script.execute: led_apply_clamp_deferred
+
+  on_turn_off:
+    then:
+      - logger.log: "Charging OFF"
 
   - platform: gpio
     pin: GPIO6
@@ -423,19 +427,141 @@ sensor:
     update_interval: never
     disabled_by_default: true
 
-  - platform: ina219
-    address: 0x40
-    shunt_resistance: 0.01 ohm
-    current:
-      id: ina_current
-      internal: true
-    power:
-      id: ina_power
-      internal: true
-    bus_voltage:
-      id: ina_voltage
-      internal: true
-    update_interval: 1s
+- platform: ina219
+  address: 0x40
+  shunt_resistance: 0.01 ohm
+
+  current:
+    id: ina_current
+    internal: true
+  power:
+    id: ina_power
+    internal: true
+  bus_voltage:
+    id: ina_voltage
+    internal: true
+
+  update_interval: 1s
+
+  on_value:
+    then:
+      - lambda: |-
+          // -------------------------------
+          // STATE (no heap)
+          // -------------------------------
+          static bool last_charging = false;
+          static bool low_power = false;
+          static bool cooling = false;
+          static int last_status = -1;
+
+          static uint8_t fast_counter = 0;
+
+          float temp = id(esp32_internal_temp).state;
+          bool charging_on = id(tablet_charging).state;
+          float max_temp_val = id(max_temp).state;
+
+          int status = 0;
+
+          // -------------------------------
+          // LED RESTORE (charging OFF edge)
+          // -------------------------------
+          if (!charging_on && last_charging) {
+
+            if (id(led_clamp_active) && id(led_mode) == 0) {
+
+              if (id(addressable_led).current_values.is_on()) {
+                auto call = id(addressable_led).turn_on();
+                call.set_brightness(id(prev_led_brightness));
+                call.perform();
+              }
+
+              id(led_clamp_active) = false;
+            }
+          }
+
+          last_charging = charging_on;
+
+          // -------------------------------
+          // THERMAL LOGIC
+          // -------------------------------
+          if (!charging_on) {
+            status = 1; // Off
+            id(ilim_low).turn_off();
+          } 
+          else {
+            if (temp >= max_temp_val + 5.0f) {
+              id(tablet_charging).turn_off();
+              cooling = true;
+              low_power = false;
+              status = 3; // Overheat
+            }
+            else if (temp >= max_temp_val) {
+              id(ilim_low).turn_on();
+              low_power = true;
+              status = 2; // Low power
+            }
+            else if (low_power && temp <= (max_temp_val - 3.0f)) {
+              id(ilim_low).turn_off();
+              low_power = false;
+              status = 0; // Normal
+            }
+
+            if (cooling && temp <= (max_temp_val - 5.0f)) {
+              id(tablet_charging).turn_on();
+              cooling = false;
+              status = 4; // Recovered
+            }
+          }
+
+          // -------------------------------
+          // STATUS PUBLISH (no heap)
+          // -------------------------------
+          if (status != last_status) {
+            last_status = status;
+
+            const char* status_str = "Normal";
+
+            switch (status) {
+              case 1: status_str = "Off"; break;
+              case 2: status_str = "Low Power (Thermal)"; break;
+              case 3: status_str = "Overheat - Charging OFF"; break;
+              case 4: status_str = "Recovered"; break;
+            }
+
+            id(charging_status).publish_state(status_str);
+          }
+
+          // -------------------------------
+          // SENSOR PUBLISH (every 3s)
+          // -------------------------------
+          fast_counter++;
+
+          if (fast_counter >= 3) {
+            fast_counter = 0;
+
+            id(power_act).publish_state(id(ina_power).state);
+            id(current_act).publish_state(id(ina_current).state);
+            id(voltage_act).publish_state(id(ina_voltage).state);
+          }
+
+          // -------------------------------
+          // AVERAGING (15s)
+          // -------------------------------
+          id(power_accum) += id(ina_power).state;
+          id(current_accum) += id(ina_current).state;
+          id(voltage_accum) += id(ina_voltage).state;
+          id(sample_count)++;
+
+          if (id(sample_count) >= 15) {
+            id(avg_power).publish_state(id(power_accum) / 15.0f);
+            id(avg_current).publish_state(id(current_accum) / 15.0f);
+            id(avg_voltage).publish_state(id(voltage_accum) / 15.0f);
+
+            id(power_accum) = 0;
+            id(current_accum) = 0;
+            id(voltage_accum) = 0;
+            id(sample_count) = 0;
+          }
 
   # --- Diagnostics ---
   - platform: internal_temperature
@@ -500,137 +626,10 @@ number:
     unit_of_measurement: "%"
     icon: "mdi:brightness-6"
     entity_category: config
-
-  - platform: template
-    name: "Control Interval"
-    id: control_interval
-    optimistic: true
-    restore_value: true
-    min_value: 1
-    max_value: 10
-    step: 1
-    initial_value: 1
-    unit_of_measurement: "s"
-    icon: "mdi:timer-outline"
-    entity_category: config
-    disabled_by_default: true
-
+    
 button:
   - platform: restart
     id: restart_button
     name: "Restart Device"
     icon: "mdi:restart"
     entity_category: config
-
-# --------------------------------------------------------------------
-# THERMAL + STATUS + AVERAGING + LED RESTORE
-# --------------------------------------------------------------------
-interval:
-  - interval: 1s
-    then:
-      - lambda: |-
-          static uint32_t last_run = 0;
-          uint32_t now = millis();
-
-          uint32_t interval_ms = (uint32_t)(id(control_interval).state * 1000.0f);
-          if (now - last_run < interval_ms) return;
-          last_run = now;
-
-          float temp = id(esp32_internal_temp).state;         
-          bool charging_on = id(tablet_charging).state;
-          float max_temp_val = id(max_temp).state;
-
-          static bool low_power = false;
-          static bool cooling = false;
-          static std::string last_status = "";
-
-          std::string status = "Normal";
-
-          // ------------------------------------------------------------------
-          // 🔁 RESTORE LED BRIGHTNESS WHEN CHARGING TURNS OFF
-          // ------------------------------------------------------------------
-          if (!charging_on && id(last_charging_state)) {
-
-            if (id(led_clamp_active) && id(led_mode) == 0) {
-
-              if (id(addressable_led).current_values.is_on()) {
-                auto call = id(addressable_led).turn_on();
-                call.set_brightness(id(prev_led_brightness));
-                call.perform();
-              }
-
-              id(led_clamp_active) = false;
-            }
-          }
-
-          // Save charging state for next cycle
-          id(last_charging_state) = charging_on;
-
-          // ------------------------------------------------------------------
-          // ⚡ CHARGING + THERMAL LOGIC
-          // ------------------------------------------------------------------
-          if (!charging_on) {
-            status = "Off";
-            id(ilim_low).turn_off();
-          } 
-          else {
-            // --- HARD OVERHEAT → disable charging completely ---
-            if (temp >= max_temp_val + 5.0f) {
-              id(tablet_charging).turn_off();
-              cooling = true;
-              low_power = false;
-              status = "Overheat - Charging OFF";
-            }
-            // --- ENTER LOW POWER MODE ---
-            else if (temp >= max_temp_val) {
-              id(ilim_low).turn_on();
-              low_power = true;
-              status = "Low Power (Thermal)";
-            }
-            // --- EXIT LOW POWER ---
-            else if (low_power && temp <= (max_temp_val - 3.0f)) {
-              id(ilim_low).turn_off();
-              low_power = false;
-              status = "Normal";
-            }
-            // --- RECOVER FROM COOLING ---
-            if (cooling && temp <= (max_temp_val - 5.0f)) {
-              id(tablet_charging).turn_on();
-              cooling = false;
-              status = "Recovered";
-            }
-          }
-
-          // ------------------------------------------------------------------
-          // 📡 STATUS UPDATE
-          // ------------------------------------------------------------------
-          if (last_status != status) {
-            id(charging_status).publish_state(status.c_str());
-            last_status = status;
-          }
-
-          // ------------------------------------------------------------------
-          // 📊 MEASUREMENTS (INSTANT)
-          // ------------------------------------------------------------------
-          id(power_act).publish_state(id(ina_power).state);
-          id(current_act).publish_state(id(ina_current).state);
-          id(voltage_act).publish_state(id(ina_voltage).state);
-
-          // ------------------------------------------------------------------
-          // 📊 AVERAGING
-          // ------------------------------------------------------------------
-          id(power_accum) += id(ina_power).state;
-          id(current_accum) += id(ina_current).state;
-          id(voltage_accum) += id(ina_voltage).state;
-          id(sample_count)++;
-
-          if (id(sample_count) >= 15) {
-            id(avg_power).publish_state(id(power_accum) / 15.0f);
-            id(avg_current).publish_state(id(current_accum) / 15.0f);
-            id(avg_voltage).publish_state(id(voltage_accum) / 15.0f);
-
-            id(power_accum) = 0;
-            id(current_accum) = 0;
-            id(voltage_accum) = 0;
-            id(sample_count) = 0;
-          }
