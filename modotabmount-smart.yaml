@@ -341,6 +341,12 @@ text_sensor:
     reset_reason:
       name: "Device Reset Reason"
 
+  - platform: template
+    name: "Bluetooth Status"
+    id: bluetooth_status
+    icon: "mdi:bluetooth-settings"
+    update_interval: never
+
 # --------------------------------------------------------------------
 # Sensors
 # --------------------------------------------------------------------
