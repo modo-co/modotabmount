@@ -14,6 +14,7 @@ jobs:
     with:
       files: |
         modotabmount.factory.yaml
+        modotabmount-smart.factory.yaml
         modotabmount-sm.factory.yaml
         modotabmount-lv.factory.yaml
       esphome-version: 2025.11.3
