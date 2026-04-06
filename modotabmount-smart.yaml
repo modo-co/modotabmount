@@ -139,21 +139,21 @@ globals:
 # --------------------------------------------------------------------
 
 switch:
-- platform: gpio
-  pin: GPIO10
-  id: tablet_charging
-  name: "Tablet Charging"
-  internal: false
-  restore_mode: RESTORE_DEFAULT_ON
+  - platform: gpio
+    pin: GPIO10
+    id: tablet_charging
+    name: "Tablet Charging"
+    internal: false
+    restore_mode: RESTORE_DEFAULT_ON
+  
+    on_turn_on:
+      then:
+        - logger.log: "Charging ON"
+        - script.execute: led_apply_clamp_deferred
 
-  on_turn_on:
-    then:
-      - logger.log: "Charging ON"
-      - script.execute: led_apply_clamp_deferred
-
-  on_turn_off:
-    then:
-      - logger.log: "Charging OFF"
+    on_turn_off:
+      then:
+        - logger.log: "Charging OFF"
 
   - platform: gpio
     pin: GPIO6
