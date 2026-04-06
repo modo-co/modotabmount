@@ -162,25 +162,27 @@ switch:
   - platform: template
     name: "Bluetooth Enabled"
     id: bluetooth_switch
-    optimistic: true
-    restore_mode: ALWAYS_ON
+    lambda: 'return id(ble_enabled);'
+    optimistic: false
+    restore_mode: DISABLED
     entity_category: config
-    icon: "mdi:bluetooth"
-    on_turn_on:
-      then:
-        - logger.log: "Bluetooth radio enabled - rebooting to apply"
-        - button.press: restart_button
-    on_turn_off:
-      then:
-        - esp32_ble_tracker.stop: # Use the correct action for your BLE platform
-        - logger.log: "Bluetooth radio disabled"
-        - lambda: |-
-            if (id(led_clamp_active)) {
-              auto call = id(addressable_led).turn_on();
-              call.set_brightness(id(prev_led_brightness));
-              call.perform();
-              id(led_clamp_active) = false;
-            }
+    icon: "mdi:bluetooth-off"
+    turn_on_action:
+      - lambda: 'id(ble_enabled) = true;'
+      - logger.log: "Bluetooth radio enabled"
+      - text_sensor.template.publish:
+          id: bluetooth_status
+          state: "Enabled - rebooting in 5 seconds"
+      - delay: 5s
+      - button.press: restart_button
+
+    turn_off_action:
+      - ble.disable:
+      - lambda: 'id(ble_enabled) = false;'
+      - logger.log: "Bluetooth radio disabled"
+      - text_sensor.template.publish:
+          id: bluetooth_status
+          state: "Disabled"
             
 # --------------------------------------------------------------------
 # Addressable LED
