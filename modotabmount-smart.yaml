@@ -493,9 +493,16 @@ interval:
           static uint32_t last_run = 0;
           uint32_t now = millis();
 
+          // 1. Dynamic interval check
           uint32_t interval_ms = (uint32_t)(id(control_interval).state * 1000.0f);
           if (now - last_run < interval_ms) return;
           last_run = now;
+
+          // 2. SENSOR GUARDS: If sensors haven't initialized yet, skip this loop.
+          // This prevents "NAN" (Not a Number) from breaking your math and crashing the CPU.
+          if (std::isnan(id(esp32_internal_temp).state) || std::isnan(id(ina_power).state)) {
+            return;
+          }
 
           float temp = id(esp32_internal_temp).state;
           bool charging_on = id(tablet_charging).state;
@@ -503,9 +510,9 @@ interval:
 
           static bool low_power = false;
           static bool cooling = false;
-          static std::string last_status = "";
-
-          std::string status = "Normal";
+          
+          // 3. Use 'const char*' instead of 'std::string' to avoid heap fragmentation crashes.
+          const char* status = "Normal";
 
           if (!charging_on) {
             status = "Off";
@@ -531,6 +538,7 @@ interval:
               low_power = false;
               status = "Normal";
             }
+            
             // --- RECOVER FROM COOLING ---
             if (cooling && temp <= (max_temp_val - 5.0f)) {
               id(tablet_charging).turn_on();
@@ -539,13 +547,14 @@ interval:
             }
           }
 
-          // Safe string comparison for status updates
-          if (last_status != status) {
-            id(charging_status).publish_state(status.c_str());
-            last_status = status;
+          // 4. Safe string comparison for status updates
+          static const char* last_published_status = "";
+          if (strcmp(last_published_status, status) != 0) {
+            id(charging_status).publish_state(status);
+            last_published_status = status;
           }
 
-          // --- Measurements Averaging ---
+          // 5. Measurements Averaging (Safely handle valid data only)
           id(power_act).publish_state(id(ina_power).state);
           id(current_act).publish_state(id(ina_current).state);
           id(voltage_act).publish_state(id(ina_voltage).state);
@@ -559,8 +568,10 @@ interval:
             id(avg_power).publish_state(id(power_accum) / 30.0f);
             id(avg_current).publish_state(id(current_accum) / 30.0f);
             id(avg_voltage).publish_state(id(voltage_accum) / 30.0f);
-            id(power_accum) = 0;
-            id(current_accum) = 0;
-            id(voltage_accum) = 0;
+            
+            // Reset accumulators
+            id(power_accum) = 0.0f;
+            id(current_accum) = 0.0f;
+            id(voltage_accum) = 0.0f;
             id(sample_count) = 0;
           }
