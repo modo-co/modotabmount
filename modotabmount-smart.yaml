@@ -123,10 +123,9 @@ globals:
 # --------------------------------------------------------------------
 
 switch:
-
   - platform: gpio
     pin: GPIO10
-    id: chrg_en
+    id: tablet_charging
     name: "Tablet Charging"
     internal: false
     restore_mode: RESTORE_DEFAULT_ON
@@ -145,37 +144,22 @@ switch:
     optimistic: true
     restore_mode: ALWAYS_ON
     entity_category: config
-    icon: "mdi:bluetooth-off"
-
-    # When turned off, disable the BLE radio
+    icon: "mdi:bluetooth"
+    on_turn_on:
+      then:
+        - logger.log: "Bluetooth radio enabled - rebooting to apply"
+        - button.press: restart_button
     on_turn_off:
       then:
-        - ble.disable:
+        - esp32_ble_tracker.stop: # Use the correct action for your BLE platform
         - logger.log: "Bluetooth radio disabled"
-
-    # When turned on, enable the BLE radio on boot
-    on_turn_on:
-      then:
-        - logger.log: "Bluetooth radio enabled - reboot"
-
-    # apply clamp immediately if LED already on
-    on_turn_on:
-      then:
-        - script.execute: led_apply_clamp_deferred
-
-    # restore user brightness when charging turns off
-    on_turn_off:
-      then:
         - lambda: |-
-            if (!id(led_clamp_active)) return;
-
-            if (id(addressable_led).current_values.is_on()) {
+            if (id(led_clamp_active)) {
               auto call = id(addressable_led).turn_on();
               call.set_brightness(id(prev_led_brightness));
               call.perform();
+              id(led_clamp_active) = false;
             }
-
-            id(led_clamp_active) = false;
             
 # --------------------------------------------------------------------
 # Addressable LED
@@ -186,7 +170,7 @@ light:
     name: "LED"
     icon: "mdi:television-ambient-light"
     chipset: WS2812
-    pin: GPIO5
+    pin: GPIO3
     num_leds: 64
     rgb_order: GRB
     default_transition_length: 0s
@@ -453,20 +437,6 @@ sensor:
 # --------------------------------------------------------------------
 number:
   - platform: template
-    name: "Charging Power"
-    id: charging_limit_level
-    optimistic: true
-    min_value: 30
-    max_value: 100
-    step: 2
-    restore_value: true
-    initial_value: 100
-    unit_of_measurement: "%"
-    icon: "mdi:lightning-bolt"
-    entity_category: config
-    disabled_by_default: true
-
-  - platform: template
     name: "Max ESP32 Temp."
     id: max_temp
     optimistic: true
@@ -478,20 +448,6 @@ number:
     unit_of_measurement: "°C"
     icon: "mdi:thermometer"
     entity_category: config
-
-  - platform: template
-    name: "Thermal Throttle Ratio"
-    id: throttle_ratio
-    optimistic: true
-    restore_value: true
-    min_value: 0.3
-    max_value: 0.95
-    step: 0.05
-    initial_value: 0.9
-    unit_of_measurement: "ratio"
-    icon: "mdi:flash-outline"
-    entity_category: config
-    disabled_by_default: true
 
   - platform: template
     name: "Charging LED Dim Level"
@@ -538,67 +494,58 @@ interval:
           uint32_t now = millis();
 
           uint32_t interval_ms = (uint32_t)(id(control_interval).state * 1000.0f);
-
           if (now - last_run < interval_ms) return;
           last_run = now;
 
-          // ------------------------------------------------------------------
-          // EXISTING THERMAL + STATUS + AVERAGING LOGIC (unchanged)
-          // ------------------------------------------------------------------
-
           float temp = id(esp32_internal_temp).state;
           bool charging_on = id(tablet_charging).state;
-
-          static unsigned int burst_phase = 0;
-          static bool cooling = false;
-
           float max_temp_val = id(max_temp).state;
-          float limit_ratio = id(charging_limit_level).state / 100.0f;
-          float throttle = id(throttle_ratio).state;
-          float level = limit_ratio;
 
-          const char* status = "Normal";
+          static bool low_power = false;
+          static bool cooling = false;
+          static std::string last_status = "";
+
+          std::string status = "Normal";
 
           if (!charging_on) {
-            level = 0.0f;
             status = "Off";
-          } else if (temp >= max_temp_val + 3.0f) {
-            cooling = true;
-            status = "Cooling Down";
-          } else if (cooling && temp <= (max_temp_val - 3.0f)) {
-            cooling = false;
-          }
-
-          if (charging_on && !cooling) {
-            if (temp >= max_temp_val + 2.0f) {
-              status = "Thermal throttling 3";
-              if (burst_phase < 3) level = throttle;
-              burst_phase = (burst_phase + 1) % 4;
-            } else if (temp >= max_temp_val) {
-              status = "Thermal throttling 2";
-              if (burst_phase < 3) level = throttle;
-              burst_phase = (burst_phase + 1) % 5;
-            } else if (temp >= (max_temp_val - 3.0f)) {
-              status = "Thermal throttling 1";
-              if (burst_phase < 2) level = throttle;
-              burst_phase = (burst_phase + 1) % 5;
-            } else {
+            id(ilim_low).turn_off();
+          } 
+          else {
+            // --- HARD OVERHEAT → disable charging completely ---
+            if (temp >= max_temp_val + 5.0f) {
+              id(tablet_charging).turn_off();
+              cooling = true;
+              low_power = false;
+              status = "Overheat - Charging OFF";
+            }
+            // --- ENTER LOW POWER MODE ---
+            else if (temp >= max_temp_val) {
+              id(ilim_low).turn_on();
+              low_power = true;
+              status = "Low Power (Thermal)";
+            }
+            // --- EXIT LOW POWER ---
+            else if (low_power && temp <= (max_temp_val - 3.0f)) {
+              id(ilim_low).turn_off();
+              low_power = false;
               status = "Normal";
-              level = limit_ratio;
-              burst_phase = 0;
+            }
+            // --- RECOVER FROM COOLING ---
+            if (cooling && temp <= (max_temp_val - 5.0f)) {
+              id(tablet_charging).turn_on();
+              cooling = false;
+              status = "Recovered";
             }
           }
 
-          id(tablet_pwm).set_level(level);
-
-          // Publish charging status ONLY when it changes
-          static const char* last_status = "";
-          if (strcmp(last_status, status) != 0) {
-            id(charging_status).publish_state(status);
+          // Safe string comparison for status updates
+          if (last_status != status) {
+            id(charging_status).publish_state(status.c_str());
             last_status = status;
           }
 
-          // 30s averaging (unchanged behavior)
+          // --- Measurements Averaging ---
           id(power_act).publish_state(id(ina_power).state);
           id(current_act).publish_state(id(ina_current).state);
           id(voltage_act).publish_state(id(ina_voltage).state);
@@ -609,9 +556,11 @@ interval:
           id(sample_count)++;
 
           if (id(sample_count) >= 30) {
-            id(avg_power).publish_state(id(power_accum) / id(sample_count));
-            id(avg_current).publish_state(id(current_accum) / id(sample_count));
-            id(avg_voltage).publish_state(id(voltage_accum) / id(sample_count));
-            id(power_accum) = id(current_accum) = id(voltage_accum) = 0;
+            id(avg_power).publish_state(id(power_accum) / 30.0f);
+            id(avg_current).publish_state(id(current_accum) / 30.0f);
+            id(avg_voltage).publish_state(id(voltage_accum) / 30.0f);
+            id(power_accum) = 0;
+            id(current_accum) = 0;
+            id(voltage_accum) = 0;
             id(sample_count) = 0;
           }
