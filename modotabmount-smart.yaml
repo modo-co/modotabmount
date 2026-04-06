@@ -355,7 +355,7 @@ sensor:
     name: "Bus Voltage"
     id: avg_voltage
     unit_of_measurement: "V"
-    accuracy_decimals: 2
+    accuracy_decimals: 3
     icon: "mdi:flash"
     device_class: voltage
     state_class: measurement
@@ -403,7 +403,7 @@ sensor:
     name: "Power"
     id: avg_power
     unit_of_measurement: "W"
-    accuracy_decimals: 2
+    accuracy_decimals: 3
     icon: "mdi:lightning-bolt"
     device_class: power
     state_class: measurement
@@ -523,7 +523,7 @@ button:
     entity_category: config
 
 # --------------------------------------------------------------------
-# THERMAL + STATUS + AVERAGING
+# THERMAL + STATUS + AVERAGING + LED RESTORE
 # --------------------------------------------------------------------
 interval:
   - interval: 1s
@@ -536,7 +536,7 @@ interval:
           if (now - last_run < interval_ms) return;
           last_run = now;
 
-          float temp = id(esp32_internal_temp).state;
+          float temp = id(esp32_internal_temp).state;         
           bool charging_on = id(tablet_charging).state;
           float max_temp_val = id(max_temp).state;
 
@@ -546,6 +546,29 @@ interval:
 
           std::string status = "Normal";
 
+          // ------------------------------------------------------------------
+          // 🔁 RESTORE LED BRIGHTNESS WHEN CHARGING TURNS OFF
+          // ------------------------------------------------------------------
+          if (!charging_on && id(last_charging_state)) {
+
+            if (id(led_clamp_active) && id(led_mode) == 0) {
+
+              if (id(addressable_led).current_values.is_on()) {
+                auto call = id(addressable_led).turn_on();
+                call.set_brightness(id(prev_led_brightness));
+                call.perform();
+              }
+
+              id(led_clamp_active) = false;
+            }
+          }
+
+          // Save charging state for next cycle
+          id(last_charging_state) = charging_on;
+
+          // ------------------------------------------------------------------
+          // ⚡ CHARGING + THERMAL LOGIC
+          // ------------------------------------------------------------------
           if (!charging_on) {
             status = "Off";
             id(ilim_low).turn_off();
@@ -578,17 +601,24 @@ interval:
             }
           }
 
-          // Safe string comparison for status updates
+          // ------------------------------------------------------------------
+          // 📡 STATUS UPDATE
+          // ------------------------------------------------------------------
           if (last_status != status) {
             id(charging_status).publish_state(status.c_str());
             last_status = status;
           }
 
-          // --- Measurements Averaging ---
+          // ------------------------------------------------------------------
+          // 📊 MEASUREMENTS (INSTANT)
+          // ------------------------------------------------------------------
           id(power_act).publish_state(id(ina_power).state);
           id(current_act).publish_state(id(ina_current).state);
           id(voltage_act).publish_state(id(ina_voltage).state);
 
+          // ------------------------------------------------------------------
+          // 📊 AVERAGING
+          // ------------------------------------------------------------------
           id(power_accum) += id(ina_power).state;
           id(current_accum) += id(ina_current).state;
           id(voltage_accum) += id(ina_voltage).state;
@@ -598,6 +628,7 @@ interval:
             id(avg_power).publish_state(id(power_accum) / 15.0f);
             id(avg_current).publish_state(id(current_accum) / 15.0f);
             id(avg_voltage).publish_state(id(voltage_accum) / 15.0f);
+
             id(power_accum) = 0;
             id(current_accum) = 0;
             id(voltage_accum) = 0;
