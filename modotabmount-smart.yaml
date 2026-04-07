@@ -446,75 +446,55 @@ interval:
     then:
       - lambda: |-
           float temp = id(esp32_internal_temp).state;
-          bool charging_on = id(tablet_charging).state;
           float max_temp_val = id(max_temp).state;
 
           static bool low_power = false;
-          static bool cooling = false;
           static int last_status = -1;
           static uint8_t counter = 0;
 
-          int status = 0; // 0=Normal,1=Off,2=LowPower,3=Overheat,4=Recovered
+          int status = 0; // 0=Normal, 2=Throttled
 
-          if (!charging_on) {
-            status = 1;
+          // --- Thermal Throttling Logic ---
+          // Trigger Low Power mode when over max temp
+          if (temp >= max_temp_val) {
+            id(ilim_low).turn_on();
+            low_power = true;
+            status = 2;
+          } 
+          // Return to Normal mode only when cooled down by 3 degrees (Hysteresis)
+          else if (low_power && temp <= (max_temp_val - 3.0f)) {
             id(ilim_low).turn_off();
-          } else {
-            if (temp >= max_temp_val + 5.0f) {
-              id(tablet_charging).turn_off();
-              cooling = true;
-              low_power = false;
-              status = 3;
-            }
-            else if (temp >= max_temp_val) {
-              id(ilim_low).turn_on();
-              low_power = true;
-              status = 2;
-            }
-            else if (low_power && temp <= (max_temp_val - 3.0f)) {
-              id(ilim_low).turn_off();
-              low_power = false;
-              status = 0;
-            }
-
-            if (cooling && temp <= (max_temp_val - 5.0f)) {
-              id(tablet_charging).turn_on();
-              cooling = false;
-              status = 4;
-            }
+            low_power = false;
+            status = 0;
+          }
+          // Maintain current state if in the "middle" buffer zone
+          else {
+            status = low_power ? 2 : 0;
           }
 
-          // publish ONLY on change
+          // Publish status ONLY on change
           if (status != last_status) {
             last_status = status;
-
-            const char* status_str = "Normal";
-            switch (status) {
-              case 1: status_str = "Off"; break;
-              case 2: status_str = "Low Power"; break;
-              case 3: status_str = "Overheat"; break;
-              case 4: status_str = "Recovered"; break;
-            }
-
-            id(charging_status).publish_state(status_str);
+            id(charging_status).publish_state(status == 2 ? "Throttled" : "Normal");
           }
 
-          // --- measurements ---
+          // --- Measurements & Averaging ---
           counter++;
 
-          // instant every 4s
+          // Instant update every 4s
           if (counter % 2 == 0) {
             id(power_act).publish_state(id(ina_power).state);
             id(current_act).publish_state(id(ina_current).state);
             id(voltage_act).publish_state(id(ina_voltage).state);
           }
 
-          // averaging
+          // Accumulate for averaging
           id(power_accum) += id(ina_power).state;
           id(current_accum) += id(ina_current).state;
           id(voltage_accum) += id(ina_voltage).state;
           id(sample_count)++;
 
+          // Publish average every 20s (10 samples)
           if (id(sample_count) >= 10) {
             id(avg_power).publish_state(id(power_accum) / 10.0f);
             id(avg_current).publish_state(id(current_accum) / 10.0f);
