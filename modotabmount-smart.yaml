@@ -94,26 +94,7 @@ globals:
     type: bool
     restore_value: yes
     initial_value: 'false'
-  
-  - id: prev_led_brightness
-    type: float
-    restore_value: no
-    initial_value: '1.0'
 
-  - id: led_clamp_active
-    type: bool
-    restore_value: no
-    initial_value: 'false'
-
-  - id: led_mode
-    type: int
-    restore_value: no
-    initial_value: '0'
-    # 0 = user
-    # 1 = ap_mode
-    # 2 = wifi_feedback
-
-  # --- Averaging ---
   - id: power_accum
     type: float
     restore_value: no
@@ -134,6 +115,15 @@ globals:
     restore_value: no
     initial_value: '0'
 
+  # ownership to prevent clamp touching AP/WiFi feedback
+  - id: led_mode
+    type: int
+    restore_value: no
+    initial_value: '0'
+    # 0 = user
+    # 1 = ap_mode
+    # 2 = wifi_feedback
+
 # --------------------------------------------------------------------
 # ⚡ Charging control
 # --------------------------------------------------------------------
@@ -145,15 +135,6 @@ switch:
     name: "Tablet Charging"
     internal: false
     restore_mode: RESTORE_DEFAULT_ON
-  
-    on_turn_on:
-      then:
-        - logger.log: "Charging ON"
-        - script.execute: led_apply_clamp_deferred
-
-    on_turn_off:
-      then:
-        - logger.log: "Charging OFF"
 
   - platform: gpio
     pin: GPIO6
@@ -202,10 +183,6 @@ light:
     rgb_order: GRB
     default_transition_length: 0s
 
-    on_state:
-      then:
-        - script.execute: led_apply_clamp_deferred
-
     effects:
       - addressable_rainbow:
           name: Rainbow
@@ -244,44 +221,6 @@ script:
           id: bluetooth_status
           state: "Disabled"
   
-  - id: led_apply_clamp_deferred
-    mode: restart
-    then:
-      - delay: 0ms
-      - lambda: |-
-          // Do not touch system-owned LED modes (AP / WiFi feedback)
-          if (id(led_mode) != 0) return;
-
-          // Clamp only while charging
-          if (!id(tablet_charging).state) return;
-
-          // LED must be ON
-          if (!id(addressable_led).current_values.is_on()) return;
-
-          float allowed = id(led_dim_level).state / 100.0f;
-          float current = id(addressable_led).current_values.get_brightness();
-
-          // User sets LOWER brightness while charging → accept it
-          if (current < allowed - 0.01f) {
-            id(prev_led_brightness) = current;
-            id(led_clamp_active) = false;
-            return;
-          }
-
-          // Already within limits → nothing to do
-          if (current <= allowed + 0.01f) return;
-
-          // Above allowed → clamp
-          if (!id(led_clamp_active)) {
-            id(prev_led_brightness) = current;
-            id(led_clamp_active) = true;
-          }
-
-          auto call = id(addressable_led).turn_on();
-          call.set_brightness(allowed);
-          call.perform();
-
-
   - id: led_ap_mode
     mode: restart
     then:
@@ -359,7 +298,8 @@ sensor:
     name: "Bus Voltage"
     id: avg_voltage
     unit_of_measurement: "V"
-    accuracy_decimals: 3
+    accuracy_decimals: 2
+    icon: "mdi:flash"
     device_class: voltage
     state_class: measurement
     lambda: |-
@@ -370,6 +310,7 @@ sensor:
     name: "Bus Voltage Inst."
     id: voltage_act
     unit_of_measurement: "V"
+    icon: "mdi:flash-triangle-outline"
     device_class: voltage
     state_class: measurement
     lambda: |-
@@ -382,6 +323,7 @@ sensor:
     id: avg_current
     unit_of_measurement: "A"
     accuracy_decimals: 3
+    icon: "mdi:current-ac"
     device_class: current
     state_class: measurement
     lambda: |-
@@ -392,6 +334,7 @@ sensor:
     name: "Output Current Inst."
     id: current_act
     unit_of_measurement: "A"
+    icon: "mdi:current-dc"
     device_class: current
     state_class: measurement
     lambda: |-
@@ -403,7 +346,8 @@ sensor:
     name: "Power"
     id: avg_power
     unit_of_measurement: "W"
-    accuracy_decimals: 3
+    accuracy_decimals: 2
+    icon: "mdi:lightning-bolt"
     device_class: power
     state_class: measurement
     lambda: |-
@@ -414,6 +358,7 @@ sensor:
     name: "Output Power Inst."
     id: power_act
     unit_of_measurement: "W"
+    icon: "mdi:flash-alert-outline"
     device_class: power
     state_class: measurement
     lambda: |-
@@ -424,7 +369,6 @@ sensor:
   - platform: ina219
     address: 0x40
     shunt_resistance: 0.01 ohm
-
     current:
       id: ina_current
       internal: true
@@ -434,124 +378,13 @@ sensor:
     bus_voltage:
       id: ina_voltage
       internal: true
-
     update_interval: 1s
-
-    on_value:
-      then:
-        - lambda: |-
-            static bool last_charging = false;
-            static bool low_power = false;
-            static bool cooling = false;
-            static int last_status = -1;
-            static uint8_t fast_counter = 0;
-
-            float temp = id(esp32_internal_temp).state;
-            bool charging_on = id(tablet_charging).state;
-            float max_temp_val = id(max_temp).state;
-
-            int status = 0;
-
-            // --- Restore brightness when charging OFF ---
-            if (!charging_on && last_charging) {
-              if (id(led_clamp_active) && id(led_mode) == 0) {
-                if (id(addressable_led).current_values.is_on()) {
-                  auto call = id(addressable_led).turn_on();
-                  call.set_brightness(id(prev_led_brightness));
-                  call.perform();
-                }
-                id(led_clamp_active) = false;
-              }
-            }
-
-            last_charging = charging_on;
-
-            // --- Thermal logic ---
-            if (!charging_on) {
-              status = 1;
-              id(ilim_low).turn_off();
-            } else {
-              if (temp >= max_temp_val + 5.0f) {
-                id(tablet_charging).turn_off();
-                cooling = true;
-                low_power = false;
-                status = 3;
-              } else if (temp >= max_temp_val) {
-                id(ilim_low).turn_on();
-                low_power = true;
-                status = 2;
-              } else if (low_power && temp <= (max_temp_val - 3.0f)) {
-                id(ilim_low).turn_off();
-                low_power = false;
-                status = 0;
-              }
-
-              if (cooling && temp <= (max_temp_val - 5.0f)) {
-                id(tablet_charging).turn_on();
-                cooling = false;
-                status = 4;
-              }
-            }
-
-            // --- Publish status ---
-            if (status != last_status) {
-              last_status = status;
-
-              const char* status_str = "Normal";
-              switch (status) {
-                case 1: status_str = "Off"; break;
-                case 2: status_str = "Low Power (Thermal)"; break;
-                case 3: status_str = "Overheat - Charging OFF"; break;
-                case 4: status_str = "Recovered"; break;
-              }
-
-              id(charging_status).publish_state(status_str);
-            }
-
-            // --- Publish instant values every 3s ---
-            fast_counter++;
-            if (fast_counter >= 3) {
-              fast_counter = 0;
-              id(power_act).publish_state(id(ina_power).state);
-              id(current_act).publish_state(id(ina_current).state);
-              id(voltage_act).publish_state(id(ina_voltage).state);
-            }
-
-            // --- Averaging ---
-            id(power_accum) += id(ina_power).state;
-            id(current_accum) += id(ina_current).state;
-            id(voltage_accum) += id(ina_voltage).state;
-            id(sample_count)++;
-
-            if (id(sample_count) >= 15) {
-              id(avg_power).publish_state(id(power_accum) / 15.0f);
-              id(avg_current).publish_state(id(current_accum) / 15.0f);
-              id(avg_voltage).publish_state(id(voltage_accum) / 15.0f);
-
-              id(power_accum) = 0;
-              id(current_accum) = 0;
-              id(voltage_accum) = 0;
-              id(sample_count) = 0;
-            }
-
-  - platform: internal_temperature
-    name: "ESP32 Internal Temp"
-    id: esp32_internal_temp
-    update_interval: 15s
-
-  - platform: uptime
-    name: "Uptime"
-    type: seconds
-
-  - platform: wifi_signal
-    name: "WiFi Signal"
-    update_interval: 60s
 
   # --- Diagnostics ---
   - platform: internal_temperature
     name: "ESP32 Internal Temp"
     id: esp32_internal_temp
-    update_interval: 15s
+    update_interval: 5s
     icon: "mdi:thermometer-lines"
     entity_category: diagnostic
 
@@ -598,22 +431,97 @@ number:
     icon: "mdi:thermometer"
     entity_category: config
 
-  - platform: template
-    name: "Charging LED Dim Level"
-    id: led_dim_level
-    optimistic: true
-    restore_value: true
-    min_value: 50
-    max_value: 100
-    step: 1
-    initial_value: 75
-    unit_of_measurement: "%"
-    icon: "mdi:brightness-6"
-    entity_category: config
-    
 button:
   - platform: restart
     id: restart_button
     name: "Restart Device"
     icon: "mdi:restart"
     entity_category: config
+
+# --------------------------------------------------------------------
+# THERMAL + STATUS + AVERAGING
+# --------------------------------------------------------------------
+interval:
+  - interval: 2s
+    then:
+      - lambda: |-
+          float temp = id(esp32_internal_temp).state;
+          bool charging_on = id(tablet_charging).state;
+          float max_temp_val = id(max_temp).state;
+
+          static bool low_power = false;
+          static bool cooling = false;
+          static int last_status = -1;
+          static uint8_t counter = 0;
+
+          int status = 0; // 0=Normal,1=Off,2=LowPower,3=Overheat,4=Recovered
+
+          if (!charging_on) {
+            status = 1;
+            id(ilim_low).turn_off();
+          } else {
+            if (temp >= max_temp_val + 5.0f) {
+              id(tablet_charging).turn_off();
+              cooling = true;
+              low_power = false;
+              status = 3;
+            }
+            else if (temp >= max_temp_val) {
+              id(ilim_low).turn_on();
+              low_power = true;
+              status = 2;
+            }
+            else if (low_power && temp <= (max_temp_val - 3.0f)) {
+              id(ilim_low).turn_off();
+              low_power = false;
+              status = 0;
+            }
+
+            if (cooling && temp <= (max_temp_val - 5.0f)) {
+              id(tablet_charging).turn_on();
+              cooling = false;
+              status = 4;
+            }
+          }
+
+          // publish ONLY on change
+          if (status != last_status) {
+            last_status = status;
+
+            const char* status_str = "Normal";
+            switch (status) {
+              case 1: status_str = "Off"; break;
+              case 2: status_str = "Low Power"; break;
+              case 3: status_str = "Overheat"; break;
+              case 4: status_str = "Recovered"; break;
+            }
+
+            id(charging_status).publish_state(status_str);
+          }
+
+          // --- measurements ---
+          counter++;
+
+          // instant every 4s
+          if (counter % 2 == 0) {
+            id(power_act).publish_state(id(ina_power).state);
+            id(current_act).publish_state(id(ina_current).state);
+            id(voltage_act).publish_state(id(ina_voltage).state);
+          }
+
+          // averaging
+          id(power_accum) += id(ina_power).state;
+          id(current_accum) += id(ina_current).state;
+          id(voltage_accum) += id(ina_voltage).state;
+          id(sample_count)++;
+
+          if (id(sample_count) >= 10) {
+            id(avg_power).publish_state(id(power_accum) / 10.0f);
+            id(avg_current).publish_state(id(current_accum) / 10.0f);
+            id(avg_voltage).publish_state(id(voltage_accum) / 10.0f);
+
+            id(power_accum) = 0;
+            id(current_accum) = 0;
+            id(voltage_accum) = 0;
+            id(sample_count) = 0;
+          }
