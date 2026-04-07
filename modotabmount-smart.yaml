@@ -134,6 +134,7 @@ switch:
     id: tablet_charging
     name: "Tablet Power"
     internal: false
+    icon: "mdi:battery-plus"
     restore_mode: RESTORE_DEFAULT_ON
 
   - platform: gpio
@@ -142,6 +143,7 @@ switch:
     name: "Charging Limiter"
     internal: false
     inverted: true
+    icon: "mdi:battery-sync"
     restore_mode: RESTORE_DEFAULT_OFF
 
   - platform: template
