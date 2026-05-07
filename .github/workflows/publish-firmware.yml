@@ -16,6 +16,7 @@ jobs:
         modotabmount-smart.factory.yaml
         modotabmount-sm.factory.yaml
         modotabmount-lv.factory.yaml
+        modotabmount.factory.yaml
       esphome-version: 2025.11.3
       release-summary: ${{ github.event.release.body }}
       release-url: ${{ github.event.release.html_url }}
