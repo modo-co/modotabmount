@@ -35,6 +35,7 @@ mdns:
   id: my_mdns
 
 api:
+  reboot_timeout: 0s
 
 wifi:
   ap:
@@ -55,6 +56,7 @@ web_server:
   version: 3
   log: false
   ota: false
+  watchdog_timeout: 0s
 
 esp32_ble:
   disable_bt_logs: true
