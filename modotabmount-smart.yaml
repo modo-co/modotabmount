@@ -35,6 +35,7 @@ mdns:
   id: my_mdns
 
 api:
+  reboot_timeout: 0s
 
 wifi:
   ap:
