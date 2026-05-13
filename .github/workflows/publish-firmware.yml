@@ -10,14 +10,14 @@ permissions:
 jobs:
   build-firmware:
     name: Build Firmware
-    uses: esphome/workflows/.github/workflows/build.yml@2025.10.0
+    uses: esphome/workflows/.github/workflows/build.yml@3c4e8446aa1029f1c346a482034b3ee1489077ca  # 2026.4.0
     with:
       files: |
         modotabmount-smart.factory.yaml
         modotabmount-sm.factory.yaml
         modotabmount-lv.factory.yaml
         modotabmount.factory.yaml
-      esphome-version: 2025.11.3
+      esphome-version: 2026.4.3
       release-summary: ${{ github.event.release.body }}
       release-url: ${{ github.event.release.html_url }}
       release-version: ${{ github.event.release.tag_name }}
