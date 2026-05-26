@@ -1,0 +1,523 @@
+esphome:
+  name: modotabmount-poe
+  friendly_name: Modo Tab Mount POE
+  name_add_mac_suffix: true
+
+  on_boot:
+    - priority: 250.0
+      then:
+        - lambda: |-
+            // Check if there are ANY credentials stored in the WiFi component
+            if (wifi::global_wifi_component->get_sta().get_ssid().empty()) {
+              ESP_LOGI("main", "Factory state detected: No WiFi credentials. Starting scanner.");
+              id(led_ap_mode).execute();
+            } else {
+              ESP_LOGI("main", "Credentials found. Waiting for WiFi connection...");
+            }
+
+esp32:
+  board: esp32-c3-devkitm-1
+  variant: esp32c3
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      CONFIG_ESP_TASK_WDT_TIMEOUT_S: "10"
+  
+logger:
+  
+debug:
+  update_interval: 10s
+
+network:
+  enable_high_performance: true
+
+mdns:
+  id: my_mdns
+
+api:
+  reboot_timeout: 0s
+
+wifi:
+  ap:
+  power_save_mode: none
+  on_connect:
+    then:
+      - logger.log: "WiFi connected"
+      - script.execute: led_ap_mode_stop
+      - script.execute: led_wifi_connected
+
+      - text_sensor.template.publish:
+          id: bluetooth_status
+          state: "Enabled (boot default)"
+
+      - if:
+          condition:
+            lambda: 'return !id(ble_enabled);'
+          then:
+            - script.execute: delayed_ble_disable
+            - logger.log: "Queued delayed BLE disable (45s after connect)"
+          else:
+            - logger.log: "Bluetooth enabled (default or user preference)"
+            - text_sensor.template.publish:
+                id: bluetooth_status
+                state: "Enabled"
+            
+captive_portal:
+
+ota:
+  - platform: esphome
+
+web_server:
+  port: 80
+  version: 3
+  log: false
+  ota: false
+
+esp32_ble:
+  disable_bt_logs: true
+
+bluetooth_proxy:
+  id: bt_proxy
+  active: false
+  connection_slots: 1
+  cache_services: false
+
+i2c:
+  sda: GPIO4
+  scl: GPIO5
+  scan: true
+
+# --------------------------------------------------------------------
+# Globals
+# --------------------------------------------------------------------
+globals: 
+  - id: ble_enabled
+    type: bool
+    restore_value: yes
+    initial_value: 'false'
+
+  - id: power_accum
+    type: float
+    restore_value: no
+    initial_value: '0.0'
+
+  - id: current_accum
+    type: float
+    restore_value: no
+    initial_value: '0.0'
+
+  - id: voltage_accum
+    type: float
+    restore_value: no
+    initial_value: '0.0'
+
+  - id: sample_count
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+  # ownership to prevent clamp touching AP/WiFi feedback
+  - id: led_mode
+    type: int
+    restore_value: no
+    initial_value: '0'
+    # 0 = user
+    # 1 = ap_mode
+    # 2 = wifi_feedback
+
+# --------------------------------------------------------------------
+# ⚡ Charging control
+# --------------------------------------------------------------------
+
+switch:
+  - platform: gpio
+    pin: GPIO10
+    id: tablet_charging
+    name: "Tablet Power"
+    internal: false
+    icon: "mdi:battery-plus"
+    restore_mode: RESTORE_DEFAULT_ON
+
+  - platform: gpio
+    pin: GPIO6
+    id: ilim_low
+    name: "Charging Limiter"
+    internal: false
+    inverted: true
+    icon: "mdi:battery-sync"
+    restore_mode: RESTORE_DEFAULT_OFF
+
+  - platform: template
+    name: "Bluetooth Enabled"
+    id: bluetooth_switch
+    lambda: 'return id(ble_enabled);'
+    optimistic: false
+    restore_mode: DISABLED
+    entity_category: config
+    icon: "mdi:bluetooth-off"
+    turn_on_action:
+      - lambda: 'id(ble_enabled) = true;'
+      - logger.log: "Bluetooth radio enabled"
+      - text_sensor.template.publish:
+          id: bluetooth_status
+          state: "Enabled - rebooting in 5 seconds"
+      - delay: 5s
+      - button.press: restart_button
+
+    turn_off_action:
+      - ble.disable:
+      - lambda: 'id(ble_enabled) = false;'
+      - logger.log: "Bluetooth radio disabled"
+      - text_sensor.template.publish:
+          id: bluetooth_status
+          state: "Disabled"
+            
+# --------------------------------------------------------------------
+# Addressable LED
+# --------------------------------------------------------------------
+light:
+  - platform: esp32_rmt_led_strip
+    id: addressable_led
+    name: "LED"
+    icon: "mdi:television-ambient-light"
+    chipset: WS2812
+    pin: GPIO3
+    num_leds: 64
+    rgb_order: GRB
+    default_transition_length: 0s
+
+    effects:
+      - addressable_rainbow:
+          name: Rainbow
+      - addressable_color_wipe:
+          name: Color Wipe
+      - addressable_twinkle:
+          name: Twinkle
+      - addressable_scan:
+          name: Scanner
+          move_interval: 50ms
+      - pulse:
+          name: Pulse
+          transition_length: 1000ms
+          update_interval: 1000ms
+      - pulse:
+          name: Pulse Fast
+          transition_length: 500ms
+          update_interval: 500ms
+      - random:
+          name: Random Colors
+      - addressable_scan:
+          name: Energy Beam
+          move_interval: 20ms
+
+# --------------------------------------------------------------------
+# LED system scripts (AP + WiFi feedback + clamp)
+# --------------------------------------------------------------------
+script:
+  - id: delayed_ble_disable
+    mode: single
+    then:
+      - delay: 45s
+      - ble.disable:
+      - logger.log: "Delayed BLE disable executed"
+      - text_sensor.template.publish:
+          id: bluetooth_status
+          state: "Disabled"
+  
+  - id: led_ap_mode
+    mode: restart
+    then:
+      - lambda: 'id(led_mode) = 1;'
+      - light.turn_on:
+          id: addressable_led
+          effect: "Scanner"
+          brightness: 100%
+          red: 0%
+          green: 0%
+          blue: 100%
+
+  - id: led_ap_mode_stop
+    then:
+      - if:
+          condition:
+            lambda: 'return id(led_mode) == 1;'
+          then:
+            - light.turn_off: addressable_led
+            - lambda: 'id(led_mode) = 0;'
+
+  - id: led_wifi_connected
+    mode: restart
+    then:
+      - lambda: 'id(led_mode) = 2;'
+      - light.turn_off:
+          id: addressable_led
+          transition_length: 0s
+      - delay: 150ms
+      - repeat:
+          count: 3
+          then:
+            - light.turn_on:
+                id: addressable_led
+                brightness: 100%
+                red: 0%
+                green: 100%
+                blue: 0%
+                transition_length: 0s
+            - delay: 250ms
+            - light.turn_off:
+                id: addressable_led
+                transition_length: 0s
+            - delay: 250ms
+      - lambda: 'id(led_mode) = 0;'
+
+# --------------------------------------------------------------------
+# Text sensors
+# --------------------------------------------------------------------
+text_sensor:
+  - platform: template
+    name: "Charging Status"
+    id: charging_status
+    icon: "mdi:lightning-bolt-outline"
+    update_interval: never
+
+  - platform: debug
+    device:
+      name: "Device Info"
+      disabled_by_default: true
+    reset_reason:
+      name: "Device Reset Reason"
+
+  - platform: template
+    name: "Bluetooth Status"
+    id: bluetooth_status
+    icon: "mdi:bluetooth-settings"
+    update_interval: never
+
+# --------------------------------------------------------------------
+# Sensors
+# --------------------------------------------------------------------
+sensor:
+  - platform: template
+    name: "Bus Voltage"
+    id: avg_voltage
+    unit_of_measurement: "V"
+    accuracy_decimals: 2
+    icon: "mdi:flash"
+    device_class: voltage
+    state_class: measurement
+    lambda: |-
+      return 0.0;
+    update_interval: never
+
+  - platform: template
+    name: "Bus Voltage Inst."
+    id: voltage_act
+    unit_of_measurement: "V"
+    icon: "mdi:flash-triangle-outline"
+    device_class: voltage
+    state_class: measurement
+    lambda: |-
+      return 0.0;
+    update_interval: never
+    disabled_by_default: true
+
+  - platform: template
+    name: "Current"
+    id: avg_current
+    unit_of_measurement: "A"
+    accuracy_decimals: 3
+    icon: "mdi:current-ac"
+    device_class: current
+    state_class: measurement
+    lambda: |-
+      return 0.0;
+    update_interval: never
+
+  - platform: template
+    name: "Output Current Inst."
+    id: current_act
+    unit_of_measurement: "A"
+    icon: "mdi:current-dc"
+    device_class: current
+    state_class: measurement
+    lambda: |-
+      return 0.0;
+    update_interval: never
+    disabled_by_default: true
+
+  - platform: template
+    name: "Power"
+    id: avg_power
+    unit_of_measurement: "W"
+    accuracy_decimals: 2
+    icon: "mdi:lightning-bolt"
+    device_class: power
+    state_class: measurement
+    lambda: |-
+      return 0.0;
+    update_interval: never
+
+  - platform: template
+    name: "Output Power Inst."
+    id: power_act
+    unit_of_measurement: "W"
+    icon: "mdi:flash-alert-outline"
+    device_class: power
+    state_class: measurement
+    lambda: |-
+      return 0.0;
+    update_interval: never
+    disabled_by_default: true
+
+  - platform: ina219
+    address: 0x40
+    shunt_resistance: 0.01 ohm
+    current:
+      id: ina_current
+      internal: true
+    power:
+      id: ina_power
+      internal: true
+    bus_voltage:
+      id: ina_voltage
+      internal: true
+    update_interval: 1s
+
+  # --- Diagnostics ---
+  - platform: internal_temperature
+    name: "ESP32 Internal Temp"
+    id: esp32_internal_temp
+    update_interval: 5s
+    icon: "mdi:thermometer-lines"
+    entity_category: diagnostic
+
+  - platform: uptime
+    name: "Uptime"
+    type: seconds
+    icon: "mdi:clock-outline"
+    entity_category: diagnostic
+
+  - platform: wifi_signal
+    name: "WiFi Signal"
+    update_interval: 60s
+    icon: "mdi:wifi"
+    entity_category: diagnostic
+
+  - platform: debug
+    free:
+      name: "Heap Free"
+      icon: "mdi:memory"
+      disabled_by_default: true
+    block:
+      name: "Heap Max Block"
+      icon: "mdi:memory"
+      disabled_by_default: true
+    loop_time:
+      name: "Loop Time"
+      icon: "mdi:timer-outline"
+      disabled_by_default: true
+
+# --------------------------------------------------------------------
+# ⚙️ Configuration
+# --------------------------------------------------------------------
+number:
+  - platform: template
+    name: "Max ESP32 Temp."
+    id: max_temp
+    optimistic: true
+    restore_value: true
+    min_value: 70
+    max_value: 100
+    step: 1
+    initial_value: 85
+    unit_of_measurement: "°C"
+    icon: "mdi:thermometer"
+    entity_category: config
+
+button:
+  - platform: restart
+    id: restart_button
+    name: "Restart Device"
+    icon: "mdi:restart"
+    entity_category: config
+
+# --------------------------------------------------------------------
+# THERMAL + STATUS + AVERAGING
+# --------------------------------------------------------------------
+interval:
+  - interval: 2s
+    then:
+      - lambda: |-
+          float temp = id(esp32_internal_temp).state;
+          float max_temp_val = id(max_temp).state;
+
+          static bool low_power = false;
+          static int last_status = -1; // 0=Normal, 1=Off, 2=Throttled
+          static uint8_t counter = 0;
+
+          int current_status = 0;
+
+          // --- 1. Master Control & Thermal Logic ---
+          if (!id(tablet_charging).state) {
+            // Force everything off if main switch is off
+            id(ilim_low).turn_off();
+            low_power = false;
+            current_status = 1; // "Off"
+          } 
+          else {
+            // Charging is ON, evaluate thermal state
+            if (temp >= max_temp_val) {
+              id(ilim_low).turn_on();
+              low_power = true;
+              current_status = 2; // "Throttled"
+            } 
+            else if (low_power && temp <= (max_temp_val - 3.0f)) {
+              id(ilim_low).turn_off();
+              low_power = false;
+              current_status = 0; // "Full Speed"
+            } 
+            else {
+              // Stay in current state (Hysteresis/Buffer zone)
+              current_status = low_power ? 2 : 0;
+            }
+          }
+
+          // --- 2. Publish Status Only On Change ---
+          if (current_status != last_status) {
+            last_status = current_status;
+            if (current_status == 1) {
+              id(charging_status).publish_state("Off");
+            } else if (current_status == 2) {
+              id(charging_status).publish_state("Throttled");
+            } else {
+              id(charging_status).publish_state("Normal");
+            }
+          }
+
+          // --- 3. Measurements & Averaging ---
+          counter++;
+
+          // Instant update every 4s
+          if (counter % 2 == 0) {
+            id(power_act).publish_state(id(ina_power).state);
+            id(current_act).publish_state(id(ina_current).state);
+            id(voltage_act).publish_state(id(ina_voltage).state);
+          }
+
+          // Accumulate for averaging
+          id(power_accum) += id(ina_power).state;
+          id(current_accum) += id(ina_current).state;
+          id(voltage_accum) += id(ina_voltage).state;
+          id(sample_count)++;
+
+          // Publish average every 20s (10 samples)
+          if (id(sample_count) >= 10) {
+            id(avg_power).publish_state(id(power_accum) / 10.0f);
+            id(avg_current).publish_state(id(current_accum) / 10.0f);
+            id(avg_voltage).publish_state(id(voltage_accum) / 10.0f);
+
+            id(power_accum) = 0;
+            id(current_accum) = 0;
+            id(voltage_accum) = 0;
+            id(sample_count) = 0;
+          }
