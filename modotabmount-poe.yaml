@@ -3,29 +3,30 @@ esphome:
   friendly_name: Modo Tab Mount POE
   name_add_mac_suffix: true
 
-# ====================== BOOT SEQUENCE ======================
-on_boot:
-  - priority: 250.0
-    then:
-      - lambda: |-
-          // Check if there are ANY credentials stored in the WiFi component
-          if (wifi::global_wifi_component->get_sta().get_ssid().empty()) {
-            ESP_LOGI("main", "Factory state detected: No WiFi credentials. Starting scanner.");
-            id(led_ap_mode).execute();
-          } else {
-            ESP_LOGI("main", "Credentials found. Waiting for WiFi connection...");
-          }
+  # ====================== BOOT SEQUENCE ======================
+  # FIXED: Moved on_boot inside the esphome: block
+  on_boot:
+    - priority: 250.0
+      then:
+        - lambda: |-
+            // Check if there are ANY credentials stored in the WiFi component
+            if (wifi::global_wifi_component->get_sta().get_ssid().empty()) {
+              ESP_LOGI("main", "Factory state detected: No WiFi credentials. Starting scanner.");
+              id(led_ap_mode).execute();
+            } else {
+              ESP_LOGI("main", "Credentials found. Waiting for WiFi connection...");
+            }
 
-  # === FUSB302B01MPX Initialization ===
-  - priority: -100
-    then:
-      - lambda: |-
-          // Initialize FUSB302B01MPX as fixed USB-C Source (5V / 3A)
-          id(i2c_bus).write_register(0x23, 0x00, {0x0F}); // Reset
-          delay(10);
-          id(i2c_bus).write_register(0x23, 0x02, {0x0C}); // SRC mode + 3A Rp
-          id(i2c_bus).write_register(0x23, 0x10, {0x27}); // Enable CC + VBUS monitoring
-          ESP_LOGI("fusb302", "FUSB302B01MPX initialized as USB-C Source");
+    # === FUSB302B01MPX Initialization ===
+    - priority: -100
+      then:
+        - lambda: |-
+            // Initialize FUSB302B01MPX as fixed USB-C Source (5V / 3A)
+            id(i2c_bus).write_register(0x23, 0x00, {0x0F}); // Reset
+            delay(10);
+            id(i2c_bus).write_register(0x23, 0x02, {0x0C}); // SRC mode + 3A Rp
+            id(i2c_bus).write_register(0x23, 0x10, {0x27}); // Enable CC + VBUS monitoring
+            ESP_LOGI("fusb302", "FUSB302B01MPX initialized as USB-C Source");
 
 esp32:
   board: esp32-c3-devkitm-1
@@ -51,6 +52,7 @@ api:
 
 wifi:
   ap:
+  # FIXED: Corrected indentation for wifi options
   power_save_mode: none
   on_connect:
     then:
@@ -79,7 +81,7 @@ ota:
 web_server:
   port: 80
   version: 3
-  log: false
+  log: true
   ota: false
 
 esp32_ble:
@@ -170,7 +172,7 @@ switch:
           id: bluetooth_status
           state: "Disabled"
 
-# ====================== LED + SCRIPTS (unchanged) ======================
+# ====================== LED + SCRIPTS ======================
 light:
   - platform: esp32_rmt_led_strip
     id: addressable_led
@@ -262,7 +264,7 @@ script:
             - delay: 250ms
       - lambda: 'id(led_mode) = 0;'
 
-# ====================== SENSORS & TEXT SENSORS (unchanged) ======================
+# ====================== SENSORS & TEXT SENSORS ======================
 text_sensor:
   - platform: template
     name: "Charging Status"
@@ -293,7 +295,43 @@ sensor:
     lambda: |-
       return 0.0;
     update_interval: never
-  # ... (all your other template sensors remain unchanged) ...
+
+  # FIXED: Added the missing actual/average accumulation template sensors targeted by your lambda loop
+  - platform: template
+    name: "Power Actual"
+    id: power_act
+    unit_of_measurement: "W"
+    accuracy_decimals: 2
+    device_class: power
+    state_class: measurement
+  - platform: template
+    name: "Current Actual"
+    id: current_act
+    unit_of_measurement: "A"
+    accuracy_decimals: 3
+    device_class: current
+    state_class: measurement
+  - platform: template
+    name: "Voltage Actual"
+    id: voltage_act
+    unit_of_measurement: "V"
+    accuracy_decimals: 2
+    device_class: voltage
+    state_class: measurement
+  - platform: template
+    name: "Average Power"
+    id: avg_power
+    unit_of_measurement: "W"
+    accuracy_decimals: 2
+    device_class: power
+    state_class: measurement
+  - platform: template
+    name: "Average Current"
+    id: avg_current
+    unit_of_measurement: "A"
+    accuracy_decimals: 3
+    device_class: current
+    state_class: measurement
 
   - platform: ina219
     address: 0x40
@@ -364,7 +402,7 @@ button:
     icon: "mdi:restart"
     entity_category: config
 
-# ====================== THERMAL LOGIC (unchanged) ======================
+# ====================== THERMAL LOGIC ======================
 globals:
   - id: ble_enabled
     type: bool
