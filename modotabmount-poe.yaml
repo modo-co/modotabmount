@@ -17,16 +17,21 @@ esphome:
               ESP_LOGI("main", "Credentials found. Waiting for WiFi connection...");
             }
 
-    # === FUSB302B01MPX Initialization ===
+
+# === FUSB302B01MPX Initialization ===
     - priority: -100
       then:
         - lambda: |-
-            // Initialize FUSB302B01MPX as fixed USB-C Source (5V / 3A)
-            id(i2c_bus).write_register(0x23, 0x00, {0x0F}); // Reset
+            // Wrap the I2C bus and device address (0x23) into an ESPHome I2C register manager
+            auto fusb = esphome::i2c::I2CRegister(id(i2c_bus), 0x23, 0x00); 
+            
+            // Write to specific registers: write_byte(register_address, value)
+            id(i2c_bus).write_byte(0x23, 0x00, 0x0F); // Reset
             delay(10);
-            id(i2c_bus).write_register(0x23, 0x02, {0x0C}); // SRC mode + 3A Rp
-            id(i2c_bus).write_register(0x23, 0x10, {0x27}); // Enable CC + VBUS monitoring
-            ESP_LOGI("fusb302", "FUSB302B01MPX initialized as USB-C Source");
+            id(i2c_bus).write_byte(0x23, 0x02, 0x0C); // SRC mode + 3A Rp
+            id(i2c_bus).write_byte(0x23, 0x10, 0x27); // Enable CC + VBUS monitoring
+            
+            ESP_LOGI("fusb302", "FUSB302B01MPX initialized as USB-C Source via IDF I2C API");
 
 esp32:
   board: esp32-c3-devkitm-1
@@ -37,6 +42,8 @@ esp32:
       CONFIG_ESP_TASK_WDT_TIMEOUT_S: "10"
 
 logger:
+  baud_rate: 115200
+  hardware_uart: UART0 
 
 debug:
   update_interval: 10s
