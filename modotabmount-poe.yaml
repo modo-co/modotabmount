@@ -22,16 +22,25 @@ esphome:
     - priority: -100
       then:
         - lambda: |-
-            // Wrap the I2C bus and device address (0x23) into an ESPHome I2C register manager
-            auto fusb = esphome::i2c::I2CRegister(id(i2c_bus), 0x23, 0x00); 
+            // FUSB302 I2C Address is 0x23
+            uint8_t address = 0x23;
+
+            // 1. Reset: Write 0x0F to Register 0x00
+            uint8_t msg_reset[] = {0x00, 0x0F};
+            id(i2c_bus).write(address, msg_reset, 2);
             
-            // Write to specific registers: write_byte(register_address, value)
-            id(i2c_bus).write_byte(0x23, 0x00, 0x0F); // Reset
             delay(10);
-            id(i2c_bus).write_byte(0x23, 0x02, 0x0C); // SRC mode + 3A Rp
-            id(i2c_bus).write_byte(0x23, 0x10, 0x27); // Enable CC + VBUS monitoring
-            
-            ESP_LOGI("fusb302", "FUSB302B01MPX initialized as USB-C Source via IDF I2C API");
+
+            // 2. SRC mode + 3A Rp: Write 0x0C to Register 0x02
+            uint8_t msg_src[] = {0x02, 0x0C};
+            id(i2c_bus).write(address, msg_src, 2);
+
+            // 3. Enable CC + VBUS monitoring: Write 0x27 to Register 0x10
+            uint8_t msg_cc[] = {0x10, 0x27};
+            id(i2c_bus).write(address, msg_cc, 2);
+
+            ESP_LOGI("fusb302", "FUSB302B01MPX initialized safely using low-level I2C array writes");
+
 
 esp32:
   board: esp32-c3-devkitm-1
