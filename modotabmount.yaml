@@ -188,7 +188,7 @@ light:
     chipset: WS2812
     pin: GPIO5
     num_leds: 64
-    rgb_order: GRB
+    channel_colors: GRB
     default_transition_length: 0s
 
     on_state:
