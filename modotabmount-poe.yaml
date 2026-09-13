@@ -1,10 +1,16 @@
-esphome:
+substitutions:
   name: modotabmount-poe
   friendly_name: Modo Tab Mount POE
+
+  # TPS25751S I2C target address on the Unique Address Interface.
+  tps25751_addr: "0x21"
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
   name_add_mac_suffix: true
 
   # ====================== BOOT SEQUENCE ======================
-  # FIXED: Moved on_boot inside the esphome: block
   on_boot:
     - priority: 250.0
       then:
@@ -16,31 +22,8 @@ esphome:
             } else {
               ESP_LOGI("main", "Credentials found. Waiting for WiFi connection...");
             }
-
-
-# === FUSB302B01MPX Initialization ===
-    - priority: -100
-      then:
-        - lambda: |-
-            // FUSB302 I2C Address is 0x23
-            uint8_t address = 0x23;
-
-            // 1. Reset: Write 0x0F to Register 0x00
-            uint8_t msg_reset[] = {0x00, 0x0F};
-            id(i2c_bus).write(address, msg_reset, 2);
-            
-            delay(10);
-
-            // 2. SRC mode + 3A Rp: Write 0x0C to Register 0x02
-            uint8_t msg_src[] = {0x02, 0x0C};
-            id(i2c_bus).write(address, msg_src, 2);
-
-            // 3. Enable CC + VBUS monitoring: Write 0x27 to Register 0x10
-            uint8_t msg_cc[] = {0x10, 0x27};
-            id(i2c_bus).write(address, msg_cc, 2);
-
-            ESP_LOGI("fusb302", "FUSB302B01MPX initialized safely using low-level I2C array writes");
-
+api:
+  reboot_timeout: 0s
 
 esp32:
   board: esp32-c3-devkitm-1
@@ -52,7 +35,7 @@ esp32:
 
 logger:
   baud_rate: 115200
-  hardware_uart: UART0 
+  hardware_uart: UART0
 
 debug:
   update_interval: 10s
@@ -63,12 +46,8 @@ network:
 mdns:
   id: my_mdns
 
-api:
-  reboot_timeout: 0s
-
 wifi:
   ap:
-  # FIXED: Corrected indentation for wifi options
   power_save_mode: none
   on_connect:
     then:
@@ -110,50 +89,27 @@ bluetooth_proxy:
   cache_services: false
 
 # ====================== I2C ======================
+# Shared bus: INA219 power monitor + TPS25751S I2Ct target interface both
+# sit on this bus per schematic (both explicitly tied to nets "SDA"/"SCL").
 i2c:
   id: i2c_bus
   sda: GPIO4
   scl: GPIO5
   scan: true
 
-# ====================== USB-C Attach Sensor (FUSB302B) ======================
-binary_sensor:
-  - platform: gpio
-    id: usb_c_attached
-    pin:
-      number: GPIO8
-      mode:
-        input: true
-        pullup: false
-      inverted: true
-    name: "USB-C Attached"
-    device_class: "plug"
-    icon: "mdi:usb-c-port"
-    filters:
-      - delayed_on: 50ms
-      - delayed_off: 200ms
-    on_press:
-      then:
-        - switch.turn_on: tablet_charging
-        - logger.log: "Tablet attached → Charging enabled"
-    on_release:
-      then:
-        - switch.turn_off: tablet_charging
-        - logger.log: "Tablet detached → Charging disabled"
-
-# ====================== CHARGING CONTROL ======================
+# ====================== CHARGING (ALWAYS ON) ======================
 switch:
   - platform: gpio
     pin: GPIO10
     id: tablet_charging
     name: "Tablet Power"
     internal: false
+    disabled_by_default: true   # hidden in HA by default; user can enable via entity settings if ever needed
     icon: "mdi:battery-plus"
-    restore_mode: RESTORE_DEFAULT_ON
-    on_turn_on:
-      - logger.log: "Tablet charging turned ON (manual or auto)"
-    on_turn_off:
-      - logger.log: "Tablet charging turned OFF"
+    # Always on - PoE variant must never drop tablet power, or the
+    # Ethernet link (which shares the same port) drops too.
+    restore_mode: ALWAYS_ON
+    device_class: switch
 
   - platform: gpio
     pin: GPIO6
@@ -224,6 +180,52 @@ light:
           move_interval: 20ms
 
 script:
+  - id: gaid_reset
+    mode: single
+    then:
+      - lambda: |-
+          const uint8_t TPS_ADDR = ${tps25751_addr};
+          ESP_LOGW("GAID", "GAID reset triggered - attempting cold reset via I2C");
+
+          // Step 1: read CMD1 (0x08) before writing, to check for a
+          // stale/pending command already occupying the register.
+          uint8_t cmd1_reg = 0x08;
+          uint8_t cmd1_buf[5] = {0};
+          auto read_err = id(i2c_bus).write_readv(TPS_ADDR, &cmd1_reg, 1, cmd1_buf, 5);
+          if (read_err == i2c::ERROR_OK) {
+            ESP_LOGW("GAID", "CMD1 before write: count=%d data=%02X %02X %02X %02X ('%c%c%c%c')",
+                     cmd1_buf[0], cmd1_buf[1], cmd1_buf[2], cmd1_buf[3], cmd1_buf[4],
+                     cmd1_buf[1] ? (char) cmd1_buf[1] : '.',
+                     cmd1_buf[2] ? (char) cmd1_buf[2] : '.',
+                     cmd1_buf[3] ? (char) cmd1_buf[3] : '.',
+                     cmd1_buf[4] ? (char) cmd1_buf[4] : '.');
+          } else {
+            ESP_LOGE("GAID", "Failed to read CMD1 before write, i2c error=%d", (int) read_err);
+          }
+
+          // Step 2: write the GAID command. Format per Unique Address
+          // Interface write protocol: [reg][bytecount][data...]
+          uint8_t gaid_cmd[6] = {0x08, 4, 'G', 'A', 'I', 'D'};
+          auto write_err = id(i2c_bus).write(TPS_ADDR, gaid_cmd, 6);
+          ESP_LOGW("GAID", "GAID write result: i2c error=%d (%s)",
+                   (int) write_err,
+                   write_err == i2c::ERROR_OK ? "OK - write acknowledged" : "FAILED - write not acknowledged");
+
+          // Step 3: brief settle time, then read CMD1 back. If the chip
+          // actually reset, this read may itself fail/NACK (expected and
+          // fine - logged as info, not an error).
+          delay(50);
+          uint8_t cmd1_buf2[5] = {0};
+          auto read_err2 = id(i2c_bus).write_readv(TPS_ADDR, &cmd1_reg, 1, cmd1_buf2, 5);
+          if (read_err2 == i2c::ERROR_OK) {
+            ESP_LOGW("GAID", "CMD1 after write: count=%d data=%02X %02X %02X %02X",
+                     cmd1_buf2[0], cmd1_buf2[1], cmd1_buf2[2], cmd1_buf2[3], cmd1_buf2[4]);
+          } else {
+            ESP_LOGW("GAID", "CMD1 read after write failed (error=%d) - consistent with chip "
+                     "already resetting, OR the write itself never landed. Check the "
+                     "'GAID write result' line above to tell which.", (int) read_err2);
+          }
+
   - id: delayed_ble_disable
     mode: single
     then:
@@ -299,6 +301,49 @@ text_sensor:
     icon: "mdi:bluetooth-settings"
     update_interval: never
 
+  # ---------------- TPS25751S status text sensors ----------------
+  - platform: template
+    name: "PD Controller Mode"
+    id: pd_mode
+    icon: "mdi:chip"
+    entity_category: diagnostic
+    update_interval: never
+  - platform: template
+    name: "USB-C Connection State"
+    id: pd_conn_state
+    icon: "mdi:usb-c-port"
+    update_interval: never
+  - platform: template
+    name: "PD Data Role"
+    id: pd_data_role
+    icon: "mdi:swap-horizontal"
+    entity_category: diagnostic
+    update_interval: never
+  - platform: template
+    name: "PD Port Role"
+    id: pd_port_role
+    icon: "mdi:power-plug"
+    entity_category: diagnostic
+    update_interval: never
+  - platform: template
+    name: "USB Host Present"
+    id: pd_usb_host_present
+    icon: "mdi:usb-port"
+    update_interval: never
+  - platform: template
+    name: "EEPROM Config Status"
+    id: pd_eeprom_status
+    icon: "mdi:memory"
+    entity_category: diagnostic
+    update_interval: never
+
+binary_sensor:
+  - platform: template
+    name: "USB-C Cable Connected"
+    id: pd_cable_connected
+    device_class: "plug"
+    icon: "mdi:usb-c-port"
+
 sensor:
   - platform: template
     name: "Bus Voltage"
@@ -312,7 +357,6 @@ sensor:
       return 0.0;
     update_interval: never
 
-  # FIXED: Added the missing actual/average accumulation template sensors targeted by your lambda loop
   - platform: template
     name: "Power Actual"
     id: power_act
@@ -418,6 +462,14 @@ button:
     icon: "mdi:restart"
     entity_category: config
 
+  - platform: template
+    name: "Force TPS25751 Reset (GAID)"
+    id: gaid_button
+    icon: "mdi:chip"
+    entity_category: diagnostic
+    on_press:
+      - script.execute: gaid_reset
+
 # ====================== THERMAL LOGIC ======================
 globals:
   - id: ble_enabled
@@ -446,6 +498,8 @@ globals:
     initial_value: '0'
 
 interval:
+  # ---------------- Thermal / limiter regulation (unchanged logic,
+  # simplified since charging is now unconditionally on) ----------------
   - interval: 2s
     then:
       - lambda: |-
@@ -456,32 +510,23 @@ interval:
           static uint8_t counter = 0;
           int current_status = 0;
 
-          if (!id(tablet_charging).state) {
+          if (temp >= max_temp_val) {
+            id(ilim_low).turn_on();
+            low_power = true;
+            current_status = 2;
+          }
+          else if (low_power && temp <= (max_temp_val - 3.0f)) {
             id(ilim_low).turn_off();
             low_power = false;
-            current_status = 1;
+            current_status = 0;
           }
           else {
-            if (temp >= max_temp_val) {
-              id(ilim_low).turn_on();
-              low_power = true;
-              current_status = 2;
-            }
-            else if (low_power && temp <= (max_temp_val - 3.0f)) {
-              id(ilim_low).turn_off();
-              low_power = false;
-              current_status = 0;
-            }
-            else {
-              current_status = low_power ? 2 : 0;
-            }
+            current_status = low_power ? 2 : 0;
           }
 
           if (current_status != last_status) {
             last_status = current_status;
-            if (current_status == 1) {
-              id(charging_status).publish_state("Off");
-            } else if (current_status == 2) {
+            if (current_status == 2) {
               id(charging_status).publish_state("Throttled");
             } else {
               id(charging_status).publish_state("Normal");
@@ -508,4 +553,132 @@ interval:
             id(current_accum) = 0;
             id(voltage_accum) = 0;
             id(sample_count) = 0;
+          }
+
+  # ---------------- TPS25751S status polling ----------------
+  # Register addresses per TI TPS25751 Host Interface TRM (SLVUCR8A):
+  #   0x03 MODE (4 bytes, ASCII: "APP ", "BOOT", "PTCH")
+  #   0x1A STATUS (5 bytes: byte0 bit0=PlugPresent, bits3:1=ConnState,
+  #                bit4=PlugOrientation, bit5=PortRole, bit6=DataRole;
+  #                byte2 bits7:6=UsbHostPresent, bits5:4=VbusStatus)
+  #   0x2D BOOT_FLAGS (5 bytes: byte0 bit3=I2cEepromPresent,
+  #                bit6=Region0Invalid, bit7=Region1Invalid,
+  #                byte1 bit4=Region0CrcFail, bit5=Region1CrcFail)
+  #   0x08 CMD1 (write-only trigger here): 4CC command register. Writing
+  #        the ASCII command "GAID" triggers a cold reset of the PD
+  #        controller, causing it to re-attempt booting from EEPROM.
+  #        Per TI Host Interface TRM section 3.4 / Application Note SLVAFL1.
+  #
+  # Read protocol: write 1-byte register address, repeated-start read.
+  # First byte returned is a byte-count, followed by that many data bytes,
+  # LSB-first. See TRM section 1.3.1 "Unique Address Interface Protocol".
+  - interval: 3s
+    then:
+      - lambda: |-
+          const uint8_t TPS_ADDR = ${tps25751_addr};
+
+          // ---- MODE register (0x03) ----
+          {
+            uint8_t reg = 0x03;
+            uint8_t buf[5] = {0};
+            auto err = id(i2c_bus).write_readv(TPS_ADDR, &reg, 1, buf, 5);
+            if (err == i2c::ERROR_OK) {
+              char mode_str[5] = {0};
+              // Data bytes are buf[1..4], MSB-first ASCII per TRM Mode field.
+              mode_str[0] = (char)buf[1];
+              mode_str[1] = (char)buf[2];
+              mode_str[2] = (char)buf[3];
+              mode_str[3] = (char)buf[4];
+              std::string mode_result(mode_str);
+              id(pd_mode).publish_state(mode_result);
+
+              // ---- PTCH watchdog: auto-trigger GAID script if stuck ----
+              static uint32_t ptch_since = 0;
+              static uint32_t last_gaid_attempt = 0;
+              uint32_t now = millis();
+
+              if (mode_result.rfind("PTCH", 0) == 0) {
+                if (ptch_since == 0) {
+                  ptch_since = now;
+                  ESP_LOGW("GAID", "Mode entered PTCH, starting 45s timer");
+                } else if (now - ptch_since > 45000 &&
+                           now - last_gaid_attempt > 120000) {
+                  ESP_LOGW("GAID", "Stuck in PTCH for >45s - triggering GAID script (watchdog)");
+                  id(gaid_reset).execute();
+                  last_gaid_attempt = now;
+                  ptch_since = 0;
+                }
+              } else {
+                ptch_since = 0;
+              }
+            } else {
+              id(pd_mode).publish_state("I2C error");
+            }
+          }
+
+          // ---- STATUS register (0x1A) ----
+          {
+            uint8_t reg = 0x1A;
+            uint8_t buf[6] = {0};
+            auto err = id(i2c_bus).write_readv(TPS_ADDR, &reg, 1, buf, 6);
+            if (err == i2c::ERROR_OK) {
+              uint8_t byte0 = buf[1];
+              uint8_t byte2 = buf[3];
+
+              bool plug_present = byte0 & 0x01;
+              uint8_t conn_state = (byte0 >> 1) & 0x07;
+              bool port_role_source = (byte0 >> 5) & 0x01;
+              bool data_role_dfp = (byte0 >> 6) & 0x01;
+              uint8_t usb_host_present = (byte2 >> 6) & 0x03;
+
+              id(pd_cable_connected).publish_state(plug_present);
+
+              const char* conn_names[8] = {
+                "No connection", "Port disabled", "Audio accessory",
+                "Debug accessory", "No connection (Ra only)", "Reserved",
+                "Connected", "Connected (Ra detected)"
+              };
+              id(pd_conn_state).publish_state(conn_names[conn_state]);
+
+              id(pd_port_role).publish_state(port_role_source ? "Source" : "Sink");
+              id(pd_data_role).publish_state(data_role_dfp ? "DFP" : "UFP");
+
+              const char* host_names[4] = {
+                "No host", "Source not data-capable",
+                "Source not PD-capable", "Host present"
+              };
+              id(pd_usb_host_present).publish_state(host_names[usb_host_present]);
+            } else {
+              id(pd_cable_connected).publish_state(false);
+              id(pd_conn_state).publish_state("I2C error");
+            }
+          }
+
+          // ---- BOOT_FLAGS register (0x2D) ----
+          {
+            uint8_t reg = 0x2D;
+            uint8_t buf[6] = {0};
+            auto err = id(i2c_bus).write_readv(TPS_ADDR, &reg, 1, buf, 6);
+            if (err == i2c::ERROR_OK) {
+              uint8_t byte0 = buf[1];
+              uint8_t byte1 = buf[2];
+
+              bool eeprom_present = (byte0 >> 3) & 0x01;
+              bool region0_invalid = (byte0 >> 6) & 0x01;
+              bool region1_invalid = (byte0 >> 7) & 0x01;
+              bool region0_crc_fail = (byte1 >> 4) & 0x01;
+              bool region1_crc_fail = (byte1 >> 5) & 0x01;
+
+              if (!eeprom_present) {
+                id(pd_eeprom_status).publish_state("EEPROM not found!");
+              } else if (region0_crc_fail || region1_crc_fail) {
+                id(pd_eeprom_status).publish_state("CRC FAIL - reflash needed");
+              } else if (region0_invalid || region1_invalid) {
+                id(pd_eeprom_status).publish_state("Region invalid");
+              } else {
+                id(pd_eeprom_status).publish_state("OK");
+              }
+            } else {
+              id(pd_eeprom_status).publish_state("I2C error");
+            }
           }
