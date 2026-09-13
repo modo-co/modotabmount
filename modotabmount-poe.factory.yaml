@@ -8,13 +8,13 @@ esphome:
   # configuration and updates.
   project:
     name: modoco.modotabmount-poe
-    version: "1.1.3"
+    version: "1.2.0"
 
 # This should point to the public location of the yaml file that will be adopted.
 # In this case it is the core yaml file that does not contain the extra things
 # that are provided by this factory yaml file as the user does not need these once adopted.
 dashboard_import:
-  package_import_url: github://modo-co/modotabmount/modotabmount-smart.yaml@main
+  package_import_url: github://modo-co/modotabmount/modotabmount-poe.yaml@main
 
 # Sets up Bluetooth LE (Only on ESP32) to allow the user
 # to provision wifi credentials to the device.
