@@ -1,13 +1,6 @@
-substitutions:
+esphome:
   name: modotabmount-poe-min
   friendly_name: Modo Tab Mount POE MIN
-
-  # TPS25751S I2C target address on the Unique Address Interface.
-  tps25751_addr: "0x21"
-
-esphome:
-  name: ${name}
-  friendly_name: ${friendly_name}
   name_add_mac_suffix: true
 
   # ====================== BOOT SEQUENCE ======================
