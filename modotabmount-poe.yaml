@@ -574,6 +574,11 @@ interval:
   - interval: 3s
     then:
       - lambda: |-
+
+          if (wifi::global_wifi_component->get_sta().get_ssid().empty()) {
+            return;
+          }
+          
           const uint8_t TPS_ADDR = ${tps25751_addr};
 
           // ---- MODE register (0x03) ----
