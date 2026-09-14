@@ -35,7 +35,8 @@ esp32:
 
 logger:
   baud_rate: 115200
-  level: WARN
+  hardware_uart: UART0
+  level: DEBUG
 
 debug:
   update_interval: 10s
