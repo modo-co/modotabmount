@@ -34,8 +34,7 @@ esp32:
       CONFIG_ESP_TASK_WDT_TIMEOUT_S: "10"
 
 logger:
-  baud_rate: 115200
-  hardware_uart: UART0
+  baud_rate: 0
 
 debug:
   update_interval: 10s
