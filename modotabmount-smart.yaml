@@ -412,6 +412,14 @@ sensor:
       name: "Heap Max Block"
       icon: "mdi:memory"
       disabled_by_default: true
+    min_free:
+      name: "Heap Min Free"
+      icon: "mdi:memory"
+      disabled_by_default: true
+    fragmentation:
+      name: "Heap Fragmentation"
+      icon: "mdi:vector-polyline"
+      disabled_by_default: true
     loop_time:
       name: "Loop Time"
       icon: "mdi:timer-outline"
