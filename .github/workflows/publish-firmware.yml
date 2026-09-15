@@ -14,7 +14,6 @@ jobs:
     with:
       files: |
         modotabmount-poe.factory.yaml
-        modotabmount-smart.factory.yaml
 
       esphome-version: 2026.6.5
       release-summary: ${{ github.event.release.body }}
