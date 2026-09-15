@@ -94,7 +94,7 @@ globals:
   - id: ble_enabled
     type: bool
     restore_value: yes
-    initial_value: 'false'
+    initial_value: 'true'
 
   - id: power_accum
     type: float
@@ -183,7 +183,7 @@ light:
     chipset: WS2812
     pin: GPIO3
     num_leds: 72
-    channel_colors: GRB
+    rgb_order: GRB
     default_transition_length: 0s
 
     effects:
