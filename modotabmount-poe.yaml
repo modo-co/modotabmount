@@ -1,9 +1,8 @@
 esphome:
-  name: modotabmount-poe-min
-  friendly_name: Modo Tab Mount POE MIN
+  name: modotabmount-poe
+  friendly_name: Modo Tab Mount POE
   name_add_mac_suffix: true
 
-  # ====================== BOOT SEQUENCE ======================
   on_boot:
     - priority: 250.0
       then:
@@ -15,8 +14,6 @@ esphome:
             } else {
               ESP_LOGI("main", "Credentials found. Waiting for WiFi connection...");
             }
-api:
-  reboot_timeout: 0s
 
 esp32:
   board: esp32-c3-devkitm-1
@@ -25,12 +22,9 @@ esp32:
     type: esp-idf
     sdkconfig_options:
       CONFIG_ESP_TASK_WDT_TIMEOUT_S: "10"
-
+  
 logger:
-  baud_rate: 115200
-  hardware_uart: UART0
-  level: DEBUG
-
+  
 debug:
   update_interval: 10s
 
@@ -40,6 +34,9 @@ network:
 mdns:
   id: my_mdns
 
+api:
+  reboot_timeout: 0s
+
 wifi:
   ap:
   power_save_mode: none
@@ -48,9 +45,11 @@ wifi:
       - logger.log: "WiFi connected"
       - script.execute: led_ap_mode_stop
       - script.execute: led_wifi_connected
+
       - text_sensor.template.publish:
           id: bluetooth_status
           state: "Enabled (boot default)"
+
       - if:
           condition:
             lambda: 'return !id(ble_enabled);'
@@ -62,8 +61,9 @@ wifi:
             - text_sensor.template.publish:
                 id: bluetooth_status
                 state: "Enabled"
-
+            
 captive_portal:
+
 ota:
   - platform: esphome
 
@@ -82,26 +82,63 @@ bluetooth_proxy:
   connection_slots: 1
   cache_services: false
 
-# ====================== I2C ======================
-# Shared bus: INA219 power monitor + TPS25751S I2Ct target interface both
-# sit on this bus per schematic (both explicitly tied to nets "SDA"/"SCL").
 i2c:
-  id: i2c_bus
   sda: GPIO4
   scl: GPIO5
   scan: true
 
-# ====================== CHARGING (ALWAYS ON) ======================
+# --------------------------------------------------------------------
+# Globals
+# --------------------------------------------------------------------
+globals: 
+  - id: ble_enabled
+    type: bool
+    restore_value: yes
+    initial_value: 'false'
+
+  - id: power_accum
+    type: float
+    restore_value: no
+    initial_value: '0.0'
+
+  - id: current_accum
+    type: float
+    restore_value: no
+    initial_value: '0.0'
+
+  - id: voltage_accum
+    type: float
+    restore_value: no
+    initial_value: '0.0'
+
+  - id: sample_count
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+  # ownership to prevent clamp touching AP/WiFi feedback
+  - id: led_mode
+    type: int
+    restore_value: no
+    initial_value: '0'
+    # 0 = user
+    # 1 = ap_mode
+    # 2 = wifi_feedback
+
+# --------------------------------------------------------------------
+# ⚡ Charging control
+# --------------------------------------------------------------------
+
 switch:
   - platform: gpio
     pin: GPIO10
     id: tablet_charging
     name: "Tablet Power"
     internal: false
-    disabled_by_default: true   # hidden in HA by default; user can enable via entity settings if ever needed
+    disabled_by_default: true
     icon: "mdi:battery-plus"
-    # Always on - PoE variant must never drop tablet power, or the
-    # Ethernet link (which shares the same port) drops too.
+    # PoE only: the tablet and the Ethernet link share one port, so cutting
+    # tablet power drops the network connection with it. Never switch this off.
     restore_mode: ALWAYS_ON
     device_class: switch
 
@@ -130,6 +167,7 @@ switch:
           state: "Enabled - rebooting in 5 seconds"
       - delay: 5s
       - button.press: restart_button
+
     turn_off_action:
       - ble.disable:
       - lambda: 'id(ble_enabled) = false;'
@@ -137,8 +175,10 @@ switch:
       - text_sensor.template.publish:
           id: bluetooth_status
           state: "Disabled"
-
-# ====================== LED + SCRIPTS ======================
+            
+# --------------------------------------------------------------------
+# Addressable LED
+# --------------------------------------------------------------------
 light:
   - platform: esp32_rmt_led_strip
     id: addressable_led
@@ -149,6 +189,7 @@ light:
     num_leds: 64
     channel_colors: GRB
     default_transition_length: 0s
+
     effects:
       - addressable_rainbow:
           name: Rainbow
@@ -173,6 +214,9 @@ light:
           name: Energy Beam
           move_interval: 20ms
 
+# --------------------------------------------------------------------
+# LED system scripts (AP + WiFi feedback + clamp)
+# --------------------------------------------------------------------
 script:
   - id: delayed_ble_disable
     mode: single
@@ -183,7 +227,7 @@ script:
       - text_sensor.template.publish:
           id: bluetooth_status
           state: "Disabled"
-
+  
   - id: led_ap_mode
     mode: restart
     then:
@@ -230,25 +274,32 @@ script:
             - delay: 250ms
       - lambda: 'id(led_mode) = 0;'
 
-# ====================== SENSORS & TEXT SENSORS ======================
+# --------------------------------------------------------------------
+# Text sensors
+# --------------------------------------------------------------------
 text_sensor:
   - platform: template
     name: "Charging Status"
     id: charging_status
     icon: "mdi:lightning-bolt-outline"
     update_interval: never
+
   - platform: debug
     device:
       name: "Device Info"
       disabled_by_default: true
     reset_reason:
       name: "Device Reset Reason"
+
   - platform: template
     name: "Bluetooth Status"
     id: bluetooth_status
     icon: "mdi:bluetooth-settings"
     update_interval: never
 
+# --------------------------------------------------------------------
+# Sensors
+# --------------------------------------------------------------------
 sensor:
   - platform: template
     name: "Bus Voltage"
@@ -263,40 +314,64 @@ sensor:
     update_interval: never
 
   - platform: template
-    name: "Power Actual"
-    id: power_act
-    unit_of_measurement: "W"
-    accuracy_decimals: 2
-    device_class: power
-    state_class: measurement
-  - platform: template
-    name: "Current Actual"
-    id: current_act
-    unit_of_measurement: "A"
-    accuracy_decimals: 3
-    device_class: current
-    state_class: measurement
-  - platform: template
-    name: "Voltage Actual"
+    name: "Bus Voltage Inst."
     id: voltage_act
     unit_of_measurement: "V"
-    accuracy_decimals: 2
+    icon: "mdi:flash-triangle-outline"
     device_class: voltage
     state_class: measurement
+    lambda: |-
+      return 0.0;
+    update_interval: never
+    disabled_by_default: true
+
   - platform: template
-    name: "Average Power"
-    id: avg_power
-    unit_of_measurement: "W"
-    accuracy_decimals: 2
-    device_class: power
-    state_class: measurement
-  - platform: template
-    name: "Average Current"
+    name: "Current"
     id: avg_current
     unit_of_measurement: "A"
     accuracy_decimals: 3
+    icon: "mdi:current-ac"
     device_class: current
     state_class: measurement
+    lambda: |-
+      return 0.0;
+    update_interval: never
+
+  - platform: template
+    name: "Output Current Inst."
+    id: current_act
+    unit_of_measurement: "A"
+    icon: "mdi:current-dc"
+    device_class: current
+    state_class: measurement
+    lambda: |-
+      return 0.0;
+    update_interval: never
+    disabled_by_default: true
+
+  - platform: template
+    name: "Power"
+    id: avg_power
+    unit_of_measurement: "W"
+    accuracy_decimals: 2
+    icon: "mdi:lightning-bolt"
+    device_class: power
+    state_class: measurement
+    lambda: |-
+      return 0.0;
+    update_interval: never
+
+  - platform: template
+    name: "Output Power Inst."
+    id: power_act
+    unit_of_measurement: "W"
+    icon: "mdi:flash-alert-outline"
+    device_class: power
+    state_class: measurement
+    lambda: |-
+      return 0.0;
+    update_interval: never
+    disabled_by_default: true
 
   - platform: ina219
     address: 0x40
@@ -312,6 +387,7 @@ sensor:
       internal: true
     update_interval: 1s
 
+  # --- Diagnostics ---
   - platform: internal_temperature
     name: "ESP32 Internal Temp"
     id: esp32_internal_temp
@@ -345,7 +421,9 @@ sensor:
       icon: "mdi:timer-outline"
       disabled_by_default: true
 
-# ====================== CONFIG & BUTTONS ======================
+# --------------------------------------------------------------------
+# ⚙️ Configuration
+# --------------------------------------------------------------------
 number:
   - platform: template
     name: "Max ESP32 Temp."
@@ -366,105 +444,84 @@ button:
     name: "Restart Device"
     icon: "mdi:restart"
     entity_category: config
-# ====================== THERMAL LOGIC ======================
-globals:
-  - id: ble_enabled
-    type: bool
-    restore_value: yes
-    initial_value: 'false'
-  - id: power_accum
-    type: float
-    restore_value: no
-    initial_value: '0.0'
-  - id: current_accum
-    type: float
-    restore_value: no
-    initial_value: '0.0'
-  - id: voltage_accum
-    type: float
-    restore_value: no
-    initial_value: '0.0'
-  - id: sample_count
-    type: int
-    restore_value: no
-    initial_value: '0'
-  - id: led_mode
-    type: int
-    restore_value: no
-    initial_value: '0'
 
+# --------------------------------------------------------------------
+# THERMAL + STATUS + AVERAGING
+# --------------------------------------------------------------------
 interval:
-  # ---------------- Thermal / limiter regulation (unchanged logic,
-  # simplified since charging is now unconditionally on) ----------------
   - interval: 2s
     then:
       - lambda: |-
           float temp = id(esp32_internal_temp).state;
           float max_temp_val = id(max_temp).state;
+
           static bool low_power = false;
-          static int last_status = -1;
+          static int last_status = -1; // 0=Normal, 1=Off, 2=Throttled
           static uint8_t counter = 0;
+
           int current_status = 0;
 
-          if (temp >= max_temp_val) {
-            id(ilim_low).turn_on();
-            low_power = true;
-            current_status = 2;
-          }
-          else if (low_power && temp <= (max_temp_val - 3.0f)) {
+          // --- 1. Master Control & Thermal Logic ---
+          if (!id(tablet_charging).state) {
+            // Force everything off if main switch is off
             id(ilim_low).turn_off();
             low_power = false;
-            current_status = 0;
-          }
+            current_status = 1; // "Off"
+          } 
           else {
-            current_status = low_power ? 2 : 0;
+            // Charging is ON, evaluate thermal state
+            if (temp >= max_temp_val) {
+              id(ilim_low).turn_on();
+              low_power = true;
+              current_status = 2; // "Throttled"
+            } 
+            else if (low_power && temp <= (max_temp_val - 3.0f)) {
+              id(ilim_low).turn_off();
+              low_power = false;
+              current_status = 0; // "Full Speed"
+            } 
+            else {
+              // Stay in current state (Hysteresis/Buffer zone)
+              current_status = low_power ? 2 : 0;
+            }
           }
 
+          // --- 2. Publish Status Only On Change ---
           if (current_status != last_status) {
             last_status = current_status;
-            if (current_status == 2) {
+            if (current_status == 1) {
+              id(charging_status).publish_state("Off");
+            } else if (current_status == 2) {
               id(charging_status).publish_state("Throttled");
             } else {
               id(charging_status).publish_state("Normal");
             }
           }
 
+          // --- 3. Measurements & Averaging ---
           counter++;
+
+          // Instant update every 4s
           if (counter % 2 == 0) {
             id(power_act).publish_state(id(ina_power).state);
             id(current_act).publish_state(id(ina_current).state);
             id(voltage_act).publish_state(id(ina_voltage).state);
           }
 
+          // Accumulate for averaging
           id(power_accum) += id(ina_power).state;
           id(current_accum) += id(ina_current).state;
           id(voltage_accum) += id(ina_voltage).state;
           id(sample_count)++;
 
+          // Publish average every 20s (10 samples)
           if (id(sample_count) >= 10) {
             id(avg_power).publish_state(id(power_accum) / 10.0f);
             id(avg_current).publish_state(id(current_accum) / 10.0f);
             id(avg_voltage).publish_state(id(voltage_accum) / 10.0f);
+
             id(power_accum) = 0;
             id(current_accum) = 0;
             id(voltage_accum) = 0;
             id(sample_count) = 0;
           }
-
-  # ---------------- TPS25751S status polling ----------------
-  # Register addresses per TI TPS25751 Host Interface TRM (SLVUCR8A):
-  #   0x03 MODE (4 bytes, ASCII: "APP ", "BOOT", "PTCH")
-  #   0x1A STATUS (5 bytes: byte0 bit0=PlugPresent, bits3:1=ConnState,
-  #                bit4=PlugOrientation, bit5=PortRole, bit6=DataRole;
-  #                byte2 bits7:6=UsbHostPresent, bits5:4=VbusStatus)
-  #   0x2D BOOT_FLAGS (5 bytes: byte0 bit3=I2cEepromPresent,
-  #                bit6=Region0Invalid, bit7=Region1Invalid,
-  #                byte1 bit4=Region0CrcFail, bit5=Region1CrcFail)
-  #   0x08 CMD1 (write-only trigger here): 4CC command register. Writing
-  #        the ASCII command "GAID" triggers a cold reset of the PD
-  #        controller, causing it to re-attempt booting from EEPROM.
-  #        Per TI Host Interface TRM section 3.4 / Application Note SLVAFL1.
-  #
-  # Read protocol: write 1-byte register address, repeated-start read.
-  # First byte returned is a byte-count, followed by that many data bytes,
-  # LSB-first. See TRM section 1.3.1 "Unique Address Interface Protocol".
