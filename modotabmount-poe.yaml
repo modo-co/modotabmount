@@ -152,7 +152,7 @@ light:
     chipset: WS2812
     pin: GPIO3
     num_leds: 64
-    channel_colors: GRB
+    rgb_order: GRB
     default_transition_length: 0s
     effects:
       - addressable_rainbow:
