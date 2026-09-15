@@ -1,8 +1,16 @@
-esphome:
+substitutions:
   name: modotabmount-poe
   friendly_name: Modo Tab Mount POE
+
+  # TPS25751S I2C target address on the Unique Address Interface.
+  tps25751_addr: "0x21"
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
   name_add_mac_suffix: true
 
+  # ====================== BOOT SEQUENCE ======================
   on_boot:
     - priority: 250.0
       then:
@@ -14,6 +22,8 @@ esphome:
             } else {
               ESP_LOGI("main", "Credentials found. Waiting for WiFi connection...");
             }
+api:
+  reboot_timeout: 0s
 
 esp32:
   board: esp32-c3-devkitm-1
@@ -22,9 +32,10 @@ esp32:
     type: esp-idf
     sdkconfig_options:
       CONFIG_ESP_TASK_WDT_TIMEOUT_S: "10"
-  
+
 logger:
-  
+  baud_rate: 0
+
 debug:
   update_interval: 10s
 
@@ -34,9 +45,6 @@ network:
 mdns:
   id: my_mdns
 
-api:
-  reboot_timeout: 0s
-
 wifi:
   ap:
   power_save_mode: none
@@ -45,11 +53,9 @@ wifi:
       - logger.log: "WiFi connected"
       - script.execute: led_ap_mode_stop
       - script.execute: led_wifi_connected
-
       - text_sensor.template.publish:
           id: bluetooth_status
           state: "Enabled (boot default)"
-
       - if:
           condition:
             lambda: 'return !id(ble_enabled);'
@@ -61,16 +67,15 @@ wifi:
             - text_sensor.template.publish:
                 id: bluetooth_status
                 state: "Enabled"
-            
-captive_portal:
 
+captive_portal:
 ota:
   - platform: esphome
 
 web_server:
   port: 80
   version: 3
-  log: false
+  log: true
   ota: false
 
 esp32_ble:
@@ -82,63 +87,26 @@ bluetooth_proxy:
   connection_slots: 1
   cache_services: false
 
+# ====================== I2C ======================
+# Shared bus: INA219 power monitor + TPS25751S I2Ct target interface both
+# sit on this bus per schematic (both explicitly tied to nets "SDA"/"SCL").
 i2c:
+  id: i2c_bus
   sda: GPIO4
   scl: GPIO5
   scan: true
 
-# --------------------------------------------------------------------
-# Globals
-# --------------------------------------------------------------------
-globals: 
-  - id: ble_enabled
-    type: bool
-    restore_value: yes
-    initial_value: 'false'
-
-  - id: power_accum
-    type: float
-    restore_value: no
-    initial_value: '0.0'
-
-  - id: current_accum
-    type: float
-    restore_value: no
-    initial_value: '0.0'
-
-  - id: voltage_accum
-    type: float
-    restore_value: no
-    initial_value: '0.0'
-
-  - id: sample_count
-    type: int
-    restore_value: no
-    initial_value: '0'
-
-  # ownership to prevent clamp touching AP/WiFi feedback
-  - id: led_mode
-    type: int
-    restore_value: no
-    initial_value: '0'
-    # 0 = user
-    # 1 = ap_mode
-    # 2 = wifi_feedback
-
-# --------------------------------------------------------------------
-# ⚡ Charging control
-# --------------------------------------------------------------------
-
+# ====================== CHARGING (ALWAYS ON) ======================
 switch:
   - platform: gpio
     pin: GPIO10
     id: tablet_charging
     name: "Tablet Power"
     internal: false
-    disabled_by_default: true
+    disabled_by_default: true   # hidden in HA by default; user can enable via entity settings if ever needed
     icon: "mdi:battery-plus"
-    # PoE only: the tablet and the Ethernet link share one port, so cutting
-    # tablet power drops the network connection with it. Never switch this off.
+    # Always on - PoE variant must never drop tablet power, or the
+    # Ethernet link (which shares the same port) drops too.
     restore_mode: ALWAYS_ON
     device_class: switch
 
@@ -167,7 +135,6 @@ switch:
           state: "Enabled - rebooting in 5 seconds"
       - delay: 5s
       - button.press: restart_button
-
     turn_off_action:
       - ble.disable:
       - lambda: 'id(ble_enabled) = false;'
@@ -175,10 +142,8 @@ switch:
       - text_sensor.template.publish:
           id: bluetooth_status
           state: "Disabled"
-            
-# --------------------------------------------------------------------
-# Addressable LED
-# --------------------------------------------------------------------
+
+# ====================== LED + SCRIPTS ======================
 light:
   - platform: esp32_rmt_led_strip
     id: addressable_led
@@ -189,7 +154,6 @@ light:
     num_leds: 64
     channel_colors: GRB
     default_transition_length: 0s
-
     effects:
       - addressable_rainbow:
           name: Rainbow
@@ -214,10 +178,53 @@ light:
           name: Energy Beam
           move_interval: 20ms
 
-# --------------------------------------------------------------------
-# LED system scripts (AP + WiFi feedback + clamp)
-# --------------------------------------------------------------------
 script:
+  - id: gaid_reset
+    mode: single
+    then:
+      - lambda: |-
+          const uint8_t TPS_ADDR = ${tps25751_addr};
+          ESP_LOGW("GAID", "GAID reset triggered - attempting cold reset via I2C");
+
+          // Step 1: read CMD1 (0x08) before writing, to check for a
+          // stale/pending command already occupying the register.
+          uint8_t cmd1_reg = 0x08;
+          uint8_t cmd1_buf[5] = {0};
+          auto read_err = id(i2c_bus).write_readv(TPS_ADDR, &cmd1_reg, 1, cmd1_buf, 5);
+          if (read_err == i2c::ERROR_OK) {
+            ESP_LOGW("GAID", "CMD1 before write: count=%d data=%02X %02X %02X %02X ('%c%c%c%c')",
+                     cmd1_buf[0], cmd1_buf[1], cmd1_buf[2], cmd1_buf[3], cmd1_buf[4],
+                     cmd1_buf[1] ? (char) cmd1_buf[1] : '.',
+                     cmd1_buf[2] ? (char) cmd1_buf[2] : '.',
+                     cmd1_buf[3] ? (char) cmd1_buf[3] : '.',
+                     cmd1_buf[4] ? (char) cmd1_buf[4] : '.');
+          } else {
+            ESP_LOGE("GAID", "Failed to read CMD1 before write, i2c error=%d", (int) read_err);
+          }
+
+          // Step 2: write the GAID command. Format per Unique Address
+          // Interface write protocol: [reg][bytecount][data...]
+          uint8_t gaid_cmd[6] = {0x08, 4, 'G', 'A', 'I', 'D'};
+          auto write_err = id(i2c_bus).write(TPS_ADDR, gaid_cmd, 6);
+          ESP_LOGW("GAID", "GAID write result: i2c error=%d (%s)",
+                   (int) write_err,
+                   write_err == i2c::ERROR_OK ? "OK - write acknowledged" : "FAILED - write not acknowledged");
+
+          // Step 3: brief settle time, then read CMD1 back. If the chip
+          // actually reset, this read may itself fail/NACK (expected and
+          // fine - logged as info, not an error).
+          delay(50);
+          uint8_t cmd1_buf2[5] = {0};
+          auto read_err2 = id(i2c_bus).write_readv(TPS_ADDR, &cmd1_reg, 1, cmd1_buf2, 5);
+          if (read_err2 == i2c::ERROR_OK) {
+            ESP_LOGW("GAID", "CMD1 after write: count=%d data=%02X %02X %02X %02X",
+                     cmd1_buf2[0], cmd1_buf2[1], cmd1_buf2[2], cmd1_buf2[3], cmd1_buf2[4]);
+          } else {
+            ESP_LOGW("GAID", "CMD1 read after write failed (error=%d) - consistent with chip "
+                     "already resetting, OR the write itself never landed. Check the "
+                     "'GAID write result' line above to tell which.", (int) read_err2);
+          }
+
   - id: delayed_ble_disable
     mode: single
     then:
@@ -227,7 +234,7 @@ script:
       - text_sensor.template.publish:
           id: bluetooth_status
           state: "Disabled"
-  
+
   - id: led_ap_mode
     mode: restart
     then:
@@ -274,32 +281,68 @@ script:
             - delay: 250ms
       - lambda: 'id(led_mode) = 0;'
 
-# --------------------------------------------------------------------
-# Text sensors
-# --------------------------------------------------------------------
+# ====================== SENSORS & TEXT SENSORS ======================
 text_sensor:
   - platform: template
     name: "Charging Status"
     id: charging_status
     icon: "mdi:lightning-bolt-outline"
     update_interval: never
-
   - platform: debug
     device:
       name: "Device Info"
       disabled_by_default: true
     reset_reason:
       name: "Device Reset Reason"
-
   - platform: template
     name: "Bluetooth Status"
     id: bluetooth_status
     icon: "mdi:bluetooth-settings"
     update_interval: never
 
-# --------------------------------------------------------------------
-# Sensors
-# --------------------------------------------------------------------
+  # ---------------- TPS25751S status text sensors ----------------
+  - platform: template
+    name: "PD Controller Mode"
+    id: pd_mode
+    icon: "mdi:chip"
+    entity_category: diagnostic
+    update_interval: never
+  - platform: template
+    name: "USB-C Connection State"
+    id: pd_conn_state
+    icon: "mdi:usb-c-port"
+    update_interval: never
+  - platform: template
+    name: "PD Data Role"
+    id: pd_data_role
+    icon: "mdi:swap-horizontal"
+    entity_category: diagnostic
+    update_interval: never
+  - platform: template
+    name: "PD Port Role"
+    id: pd_port_role
+    icon: "mdi:power-plug"
+    entity_category: diagnostic
+    update_interval: never
+  - platform: template
+    name: "USB Host Present"
+    id: pd_usb_host_present
+    icon: "mdi:usb-port"
+    update_interval: never
+  - platform: template
+    name: "EEPROM Config Status"
+    id: pd_eeprom_status
+    icon: "mdi:memory"
+    entity_category: diagnostic
+    update_interval: never
+
+binary_sensor:
+  - platform: template
+    name: "USB-C Cable Connected"
+    id: pd_cable_connected
+    device_class: "plug"
+    icon: "mdi:usb-c-port"
+
 sensor:
   - platform: template
     name: "Bus Voltage"
@@ -314,64 +357,40 @@ sensor:
     update_interval: never
 
   - platform: template
-    name: "Bus Voltage Inst."
-    id: voltage_act
-    unit_of_measurement: "V"
-    icon: "mdi:flash-triangle-outline"
-    device_class: voltage
+    name: "Power Actual"
+    id: power_act
+    unit_of_measurement: "W"
+    accuracy_decimals: 2
+    device_class: power
     state_class: measurement
-    lambda: |-
-      return 0.0;
-    update_interval: never
-    disabled_by_default: true
-
   - platform: template
-    name: "Current"
-    id: avg_current
-    unit_of_measurement: "A"
-    accuracy_decimals: 3
-    icon: "mdi:current-ac"
-    device_class: current
-    state_class: measurement
-    lambda: |-
-      return 0.0;
-    update_interval: never
-
-  - platform: template
-    name: "Output Current Inst."
+    name: "Current Actual"
     id: current_act
     unit_of_measurement: "A"
-    icon: "mdi:current-dc"
+    accuracy_decimals: 3
     device_class: current
     state_class: measurement
-    lambda: |-
-      return 0.0;
-    update_interval: never
-    disabled_by_default: true
-
   - platform: template
-    name: "Power"
+    name: "Voltage Actual"
+    id: voltage_act
+    unit_of_measurement: "V"
+    accuracy_decimals: 2
+    device_class: voltage
+    state_class: measurement
+  - platform: template
+    name: "Average Power"
     id: avg_power
     unit_of_measurement: "W"
     accuracy_decimals: 2
-    icon: "mdi:lightning-bolt"
     device_class: power
     state_class: measurement
-    lambda: |-
-      return 0.0;
-    update_interval: never
-
   - platform: template
-    name: "Output Power Inst."
-    id: power_act
-    unit_of_measurement: "W"
-    icon: "mdi:flash-alert-outline"
-    device_class: power
+    name: "Average Current"
+    id: avg_current
+    unit_of_measurement: "A"
+    accuracy_decimals: 3
+    device_class: current
     state_class: measurement
-    lambda: |-
-      return 0.0;
-    update_interval: never
-    disabled_by_default: true
 
   - platform: ina219
     address: 0x40
@@ -387,7 +406,6 @@ sensor:
       internal: true
     update_interval: 1s
 
-  # --- Diagnostics ---
   - platform: internal_temperature
     name: "ESP32 Internal Temp"
     id: esp32_internal_temp
@@ -421,9 +439,7 @@ sensor:
       icon: "mdi:timer-outline"
       disabled_by_default: true
 
-# --------------------------------------------------------------------
-# ⚙️ Configuration
-# --------------------------------------------------------------------
+# ====================== CONFIG & BUTTONS ======================
 number:
   - platform: template
     name: "Max ESP32 Temp."
@@ -445,83 +461,223 @@ button:
     icon: "mdi:restart"
     entity_category: config
 
-# --------------------------------------------------------------------
-# THERMAL + STATUS + AVERAGING
-# --------------------------------------------------------------------
+  - platform: template
+    name: "Force TPS25751 Reset (GAID)"
+    id: gaid_button
+    icon: "mdi:chip"
+    entity_category: diagnostic
+    on_press:
+      - script.execute: gaid_reset
+
+# ====================== THERMAL LOGIC ======================
+globals:
+  - id: ble_enabled
+    type: bool
+    restore_value: yes
+    initial_value: 'false'
+  - id: power_accum
+    type: float
+    restore_value: no
+    initial_value: '0.0'
+  - id: current_accum
+    type: float
+    restore_value: no
+    initial_value: '0.0'
+  - id: voltage_accum
+    type: float
+    restore_value: no
+    initial_value: '0.0'
+  - id: sample_count
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: led_mode
+    type: int
+    restore_value: no
+    initial_value: '0'
+
 interval:
+  # ---------------- Thermal / limiter regulation (unchanged logic,
+  # simplified since charging is now unconditionally on) ----------------
   - interval: 2s
     then:
       - lambda: |-
           float temp = id(esp32_internal_temp).state;
           float max_temp_val = id(max_temp).state;
-
           static bool low_power = false;
-          static int last_status = -1; // 0=Normal, 1=Off, 2=Throttled
+          static int last_status = -1;
           static uint8_t counter = 0;
-
           int current_status = 0;
 
-          // --- 1. Master Control & Thermal Logic ---
-          if (!id(tablet_charging).state) {
-            // Force everything off if main switch is off
+          if (temp >= max_temp_val) {
+            id(ilim_low).turn_on();
+            low_power = true;
+            current_status = 2;
+          }
+          else if (low_power && temp <= (max_temp_val - 3.0f)) {
             id(ilim_low).turn_off();
             low_power = false;
-            current_status = 1; // "Off"
-          } 
+            current_status = 0;
+          }
           else {
-            // Charging is ON, evaluate thermal state
-            if (temp >= max_temp_val) {
-              id(ilim_low).turn_on();
-              low_power = true;
-              current_status = 2; // "Throttled"
-            } 
-            else if (low_power && temp <= (max_temp_val - 3.0f)) {
-              id(ilim_low).turn_off();
-              low_power = false;
-              current_status = 0; // "Full Speed"
-            } 
-            else {
-              // Stay in current state (Hysteresis/Buffer zone)
-              current_status = low_power ? 2 : 0;
-            }
+            current_status = low_power ? 2 : 0;
           }
 
-          // --- 2. Publish Status Only On Change ---
           if (current_status != last_status) {
             last_status = current_status;
-            if (current_status == 1) {
-              id(charging_status).publish_state("Off");
-            } else if (current_status == 2) {
+            if (current_status == 2) {
               id(charging_status).publish_state("Throttled");
             } else {
               id(charging_status).publish_state("Normal");
             }
           }
 
-          // --- 3. Measurements & Averaging ---
           counter++;
-
-          // Instant update every 4s
           if (counter % 2 == 0) {
             id(power_act).publish_state(id(ina_power).state);
             id(current_act).publish_state(id(ina_current).state);
             id(voltage_act).publish_state(id(ina_voltage).state);
           }
 
-          // Accumulate for averaging
           id(power_accum) += id(ina_power).state;
           id(current_accum) += id(ina_current).state;
           id(voltage_accum) += id(ina_voltage).state;
           id(sample_count)++;
 
-          // Publish average every 20s (10 samples)
           if (id(sample_count) >= 10) {
             id(avg_power).publish_state(id(power_accum) / 10.0f);
             id(avg_current).publish_state(id(current_accum) / 10.0f);
             id(avg_voltage).publish_state(id(voltage_accum) / 10.0f);
-
             id(power_accum) = 0;
             id(current_accum) = 0;
             id(voltage_accum) = 0;
             id(sample_count) = 0;
+          }
+
+  # ---------------- TPS25751S status polling ----------------
+  # Register addresses per TI TPS25751 Host Interface TRM (SLVUCR8A):
+  #   0x03 MODE (4 bytes, ASCII: "APP ", "BOOT", "PTCH")
+  #   0x1A STATUS (5 bytes: byte0 bit0=PlugPresent, bits3:1=ConnState,
+  #                bit4=PlugOrientation, bit5=PortRole, bit6=DataRole;
+  #                byte2 bits7:6=UsbHostPresent, bits5:4=VbusStatus)
+  #   0x2D BOOT_FLAGS (5 bytes: byte0 bit3=I2cEepromPresent,
+  #                bit6=Region0Invalid, bit7=Region1Invalid,
+  #                byte1 bit4=Region0CrcFail, bit5=Region1CrcFail)
+  #   0x08 CMD1 (write-only trigger here): 4CC command register. Writing
+  #        the ASCII command "GAID" triggers a cold reset of the PD
+  #        controller, causing it to re-attempt booting from EEPROM.
+  #        Per TI Host Interface TRM section 3.4 / Application Note SLVAFL1.
+  #
+  # Read protocol: write 1-byte register address, repeated-start read.
+  # First byte returned is a byte-count, followed by that many data bytes,
+  # LSB-first. See TRM section 1.3.1 "Unique Address Interface Protocol".
+  - interval: 3s
+    then:
+      - lambda: |-
+          const uint8_t TPS_ADDR = ${tps25751_addr};
+
+          // ---- MODE register (0x03) ----
+          {
+            uint8_t reg = 0x03;
+            uint8_t buf[5] = {0};
+            auto err = id(i2c_bus).write_readv(TPS_ADDR, &reg, 1, buf, 5);
+            if (err == i2c::ERROR_OK) {
+              char mode_str[5] = {0};
+              // Data bytes are buf[1..4], MSB-first ASCII per TRM Mode field.
+              mode_str[0] = (char)buf[1];
+              mode_str[1] = (char)buf[2];
+              mode_str[2] = (char)buf[3];
+              mode_str[3] = (char)buf[4];
+              std::string mode_result(mode_str);
+              id(pd_mode).publish_state(mode_result);
+
+              // ---- PTCH watchdog: auto-trigger GAID script if stuck ----
+              static uint32_t ptch_since = 0;
+              static uint32_t last_gaid_attempt = 0;
+              uint32_t now = millis();
+
+              if (mode_result.rfind("PTCH", 0) == 0) {
+                if (ptch_since == 0) {
+                  ptch_since = now;
+                  ESP_LOGW("GAID", "Mode entered PTCH, starting 45s timer");
+                } else if (now - ptch_since > 45000 &&
+                           now - last_gaid_attempt > 120000) {
+                  ESP_LOGW("GAID", "Stuck in PTCH for >45s - triggering GAID script (watchdog)");
+                  id(gaid_reset).execute();
+                  last_gaid_attempt = now;
+                  ptch_since = 0;
+                }
+              } else {
+                ptch_since = 0;
+              }
+            } else {
+              id(pd_mode).publish_state("I2C error");
+            }
+          }
+
+          // ---- STATUS register (0x1A) ----
+          {
+            uint8_t reg = 0x1A;
+            uint8_t buf[6] = {0};
+            auto err = id(i2c_bus).write_readv(TPS_ADDR, &reg, 1, buf, 6);
+            if (err == i2c::ERROR_OK) {
+              uint8_t byte0 = buf[1];
+              uint8_t byte2 = buf[3];
+
+              bool plug_present = byte0 & 0x01;
+              uint8_t conn_state = (byte0 >> 1) & 0x07;
+              bool port_role_source = (byte0 >> 5) & 0x01;
+              bool data_role_dfp = (byte0 >> 6) & 0x01;
+              uint8_t usb_host_present = (byte2 >> 6) & 0x03;
+
+              id(pd_cable_connected).publish_state(plug_present);
+
+              const char* conn_names[8] = {
+                "No connection", "Port disabled", "Audio accessory",
+                "Debug accessory", "No connection (Ra only)", "Reserved",
+                "Connected", "Connected (Ra detected)"
+              };
+              id(pd_conn_state).publish_state(conn_names[conn_state]);
+
+              id(pd_port_role).publish_state(port_role_source ? "Source" : "Sink");
+              id(pd_data_role).publish_state(data_role_dfp ? "DFP" : "UFP");
+
+              const char* host_names[4] = {
+                "No host", "Source not data-capable",
+                "Source not PD-capable", "Host present"
+              };
+              id(pd_usb_host_present).publish_state(host_names[usb_host_present]);
+            } else {
+              id(pd_cable_connected).publish_state(false);
+              id(pd_conn_state).publish_state("I2C error");
+            }
+          }
+
+          // ---- BOOT_FLAGS register (0x2D) ----
+          {
+            uint8_t reg = 0x2D;
+            uint8_t buf[6] = {0};
+            auto err = id(i2c_bus).write_readv(TPS_ADDR, &reg, 1, buf, 6);
+            if (err == i2c::ERROR_OK) {
+              uint8_t byte0 = buf[1];
+              uint8_t byte1 = buf[2];
+
+              bool eeprom_present = (byte0 >> 3) & 0x01;
+              bool region0_invalid = (byte0 >> 6) & 0x01;
+              bool region1_invalid = (byte0 >> 7) & 0x01;
+              bool region0_crc_fail = (byte1 >> 4) & 0x01;
+              bool region1_crc_fail = (byte1 >> 5) & 0x01;
+
+              if (!eeprom_present) {
+                id(pd_eeprom_status).publish_state("EEPROM not found!");
+              } else if (region0_crc_fail || region1_crc_fail) {
+                id(pd_eeprom_status).publish_state("CRC FAIL - reflash needed");
+              } else if (region0_invalid || region1_invalid) {
+                id(pd_eeprom_status).publish_state("Region invalid");
+              } else {
+                id(pd_eeprom_status).publish_state("OK");
+              }
+            } else {
+              id(pd_eeprom_status).publish_state("I2C error");
+            }
           }
