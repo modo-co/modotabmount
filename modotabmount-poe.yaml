@@ -312,12 +312,15 @@ text_sensor:
     name: "USB-C Connection State"
     id: pd_conn_state
     icon: "mdi:usb-c-port"
+    entity_category: diagnostic
+    disabled_by_default: true
     update_interval: never
   - platform: template
     name: "PD Data Role"
     id: pd_data_role
     icon: "mdi:swap-horizontal"
     entity_category: diagnostic
+    disabled_by_default: true
     update_interval: never
   - platform: template
     name: "PD Port Role"
@@ -360,6 +363,7 @@ sensor:
   - platform: template
     name: "Power Actual"
     id: power_act
+    icon: "mdi:lightning-bolt"
     unit_of_measurement: "W"
     accuracy_decimals: 2
     device_class: power
@@ -367,6 +371,7 @@ sensor:
   - platform: template
     name: "Current Actual"
     id: current_act
+    icon: "mdi:current-dc"
     unit_of_measurement: "A"
     accuracy_decimals: 3
     device_class: current
@@ -374,6 +379,7 @@ sensor:
   - platform: template
     name: "Voltage Actual"
     id: voltage_act
+    icon: "mdi:flash-triangle"
     unit_of_measurement: "V"
     accuracy_decimals: 2
     device_class: voltage
@@ -381,6 +387,7 @@ sensor:
   - platform: template
     name: "Average Power"
     id: avg_power
+    icon: "mdi:chart-line"
     unit_of_measurement: "W"
     accuracy_decimals: 2
     device_class: power
@@ -388,6 +395,7 @@ sensor:
   - platform: template
     name: "Average Current"
     id: avg_current
+    icon: "mdi:chart-line-variant"
     unit_of_measurement: "A"
     accuracy_decimals: 3
     device_class: current
@@ -435,6 +443,14 @@ sensor:
       name: "Heap Max Block"
       icon: "mdi:memory"
       disabled_by_default: true
+    min_free:
+      name: "Heap Min Free"
+      icon: "mdi:memory"
+      disabled_by_default: true
+    fragmentation:
+      name: "Heap Fragmentation"
+      icon: "mdi:vector-polyline"
+      disabled_by_default: true
     loop_time:
       name: "Loop Time"
       icon: "mdi:timer-outline"
@@ -470,12 +486,11 @@ button:
     on_press:
       - script.execute: gaid_reset
 
-# ====================== THERMAL LOGIC ======================
 globals:
   - id: ble_enabled
     type: bool
     restore_value: yes
-    initial_value: 'false'
+    initial_value: 'true'
   - id: power_accum
     type: float
     restore_value: no
@@ -498,6 +513,7 @@ globals:
     initial_value: '0'
 
 interval:
+  # ====================== THERMAL LOGIC ======================
   # ---------------- Thermal / limiter regulation (unchanged logic,
   # simplified since charging is now unconditionally on) ----------------
   - interval: 2s
