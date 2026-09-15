@@ -361,15 +361,15 @@ sensor:
     update_interval: never
 
   - platform: template
-    name: "Power Actual"
+    name: "Output Power Inst."
     id: power_act
-    icon: "mdi:lightning-bolt"
+    icon: "mdi:flash-alert-outline"
     unit_of_measurement: "W"
     accuracy_decimals: 2
     device_class: power
     state_class: measurement
   - platform: template
-    name: "Current Actual"
+    name: "Output Current Inst."
     id: current_act
     icon: "mdi:current-dc"
     unit_of_measurement: "A"
@@ -377,25 +377,25 @@ sensor:
     device_class: current
     state_class: measurement
   - platform: template
-    name: "Voltage Actual"
+    name: "Bus Voltage Inst."
     id: voltage_act
-    icon: "mdi:flash-triangle"
+    icon: "mdi:flash-triangle-outline"
     unit_of_measurement: "V"
     accuracy_decimals: 2
     device_class: voltage
     state_class: measurement
   - platform: template
-    name: "Average Power"
+    name: "Power"
     id: avg_power
-    icon: "mdi:chart-line"
+    icon: "mdi:lightning-bolt"
     unit_of_measurement: "W"
     accuracy_decimals: 2
     device_class: power
     state_class: measurement
   - platform: template
-    name: "Average Current"
+    name: "Current"
     id: avg_current
-    icon: "mdi:chart-line-variant"
+    icon: "mdi:current-ac"
     unit_of_measurement: "A"
     accuracy_decimals: 3
     device_class: current
