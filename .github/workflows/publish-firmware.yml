@@ -10,7 +10,7 @@ permissions:
 jobs:
   build-firmware:
     name: Build Firmware
-    uses: esphome/workflows/.github/workflows/build.yml@0fdd5e311b7e744069166696072a1a9cbc5fbeb6  # 2026.8.1
+    uses: esphome/workflows/.github/workflows/upload-to-gh-release.yml@025a1e6255610c498ed590403b7e510b69e474df # 2026.4.1
     with:
       files: |
         modotabmount-poe.factory.yaml
