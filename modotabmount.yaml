@@ -474,7 +474,7 @@ number:
     min_value: 70
     max_value: 100
     step: 1
-    initial_value: 85
+    initial_value: 90
     unit_of_measurement: "°C"
     icon: "mdi:thermometer"
     entity_category: config
